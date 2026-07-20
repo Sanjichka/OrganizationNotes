@@ -29,6 +29,8 @@ import {
 } from '../data/tasks'
 import { DaySection } from './DaySection'
 import { TaskCard } from './TaskCard'
+import { ConfirmDialog } from './ConfirmDialog'
+import { AddTaskSheet } from './AddTaskSheet'
 
 export function Board({ session }: { session: Session }) {
   const userId = session.user.id
@@ -37,6 +39,10 @@ export function Board({ session }: { session: Session }) {
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<Bucket>>(new Set())
   const [activeId, setActiveId] = useState<string | null>(null)
+  // The × is a small target on a phone; deletion is confirmed before it lands.
+  const [pendingDelete, setPendingDelete] = useState<Task | null>(null)
+  // The bucket a new task is being composed for, or null when the sheet is shut.
+  const [addingTo, setAddingTo] = useState<Bucket | null>(null)
 
   const dates = useMemo(() => weekDates(), [])
   const today = useMemo(() => todayBucket(), [])
@@ -78,9 +84,15 @@ export function Board({ session }: { session: Session }) {
     setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
   }
 
-  async function handleAdd(bucket: Bucket) {
-    const title = window.prompt(`New task in ${bucket}`)?.trim()
-    if (!title) return
+  async function handleAdd(bucket: Bucket, title: string) {
+    setAddingTo(null)
+    // A task added to a collapsed section would land out of sight.
+    setCollapsed((prev) => {
+      if (!prev.has(bucket)) return prev
+      const next = new Set(prev)
+      next.delete(bucket)
+      return next
+    })
     try {
       const task = await addTask({
         userId,
@@ -105,6 +117,7 @@ export function Board({ session }: { session: Session }) {
   }
 
   async function handleDelete(task: Task) {
+    setPendingDelete(null)
     const prev = tasks
     setTasks((p) => p.filter((t) => t.id !== task.id))
     try {
@@ -240,8 +253,8 @@ export function Board({ session }: { session: Session }) {
               collapsed={collapsed.has(b)}
               onToggleCollapse={toggleCollapse}
               onToggleTask={handleToggle}
-              onDeleteTask={handleDelete}
-              onAdd={handleAdd}
+              onDeleteTask={setPendingDelete}
+              onAdd={setAddingTo}
             />
           ))}
         </div>
@@ -256,6 +269,24 @@ export function Board({ session }: { session: Session }) {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {addingTo && (
+        <AddTaskSheet
+          bucket={addingTo}
+          onSubmit={(title) => handleAdd(addingTo, title)}
+          onCancel={() => setAddingTo(null)}
+        />
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete this task?"
+          body={`“${pendingDelete.title}” will be removed permanently. This can’t be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => handleDelete(pendingDelete)}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   )
 }

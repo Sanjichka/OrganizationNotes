@@ -3,11 +3,14 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { Auth } from './components/Auth'
 import { Board } from './components/Board'
+import { Stats } from './components/Stats'
+import { Tabs, type Page } from './components/Tabs'
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState<Page>('tasks')
 
   useEffect(() => {
     supabase.auth
@@ -46,9 +49,18 @@ export function App() {
     )
   }
 
+  if (!session) {
+    return (
+      <div className="phone">
+        <Auth />
+      </div>
+    )
+  }
+
   return (
     <div className="phone">
-      {session ? <Board session={session} /> : <Auth />}
+      {page === 'tasks' ? <Board session={session} /> : <Stats />}
+      <Tabs page={page} onChange={setPage} />
     </div>
   )
 }

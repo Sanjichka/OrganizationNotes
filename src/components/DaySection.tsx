@@ -73,18 +73,7 @@ export function DaySection({
       </header>
 
       {collapsed ? (
-        <div className="minibars">
-          {open.slice(0, 6).map((t, i) => {
-            const s = openShade(bucket, i, n)
-            return (
-              <span
-                key={t.id}
-                className="minibar"
-                style={{ height: 14 - i, background: s.background }}
-              />
-            )
-          })}
-        </div>
+        <NextUp bucket={bucket} open={open} hasDone={done.length > 0} />
       ) : (
         <div ref={setNodeRef} className="section-body">
           <SortableContext
@@ -114,5 +103,39 @@ export function DaySection({
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Collapsed-state preview. A day that is folded shut is being asked "what do I
+ * owe here?", so it answers with the top open task's name rather than an
+ * abstract quantity — the count already sits in the header.
+ */
+function NextUp({
+  bucket,
+  open,
+  hasDone,
+}: {
+  bucket: Bucket
+  open: Task[]
+  hasDone: boolean
+}) {
+  if (open.length === 0) {
+    if (!hasDone) return null // header already reads 'empty'
+    return (
+      <p className="next-up next-up-done" style={{ color: doneShade(bucket).foreground }}>
+        All done
+      </p>
+    )
+  }
+
+  const top = openShade(bucket, 0, open.length)
+  return (
+    <p className="next-up">
+      <span className="next-dot" style={{ background: top.background }} />
+      <span className="next-title" style={{ color: sectionShade(bucket).label }}>
+        {open[0].title}
+      </span>
+    </p>
   )
 }

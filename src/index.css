@@ -30,6 +30,8 @@ body {
   margin: 0 auto;
   min-height: 100dvh;
   background: var(--surface);
+  /* Clears the fixed bottom nav so the last task is never behind it. */
+  padding-bottom: calc(62px + env(safe-area-inset-bottom));
 }
 
 .mono {
@@ -75,6 +77,45 @@ body {
 }
 .btn:active {
   background: var(--accent-hover);
+}
+
+/* Bottom nav ----------------------------------------------------------------*/
+.tabs {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  display: flex;
+  gap: 6px;
+  /* A deeper warm plane than the app surface, lifted by a soft upward
+     shadow — the nav reads as sitting above the board, not part of it. */
+  background: oklch(0.955 0.005 95);
+  border-top: 1px solid oklch(0.9 0.005 95);
+  box-shadow: 0 -6px 20px oklch(0.22 0.01 95 / 0.07);
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+}
+.tab {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  padding: 9px 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+/* The selected tab is the one raised piece of surface in the bar. */
+.tab-active {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 1px 3px oklch(0.22 0.01 95 / 0.1);
 }
 
 /* Header --------------------------------------------------------------------*/
@@ -206,16 +247,30 @@ body {
   padding: 4px 0;
 }
 
-.minibars {
+.next-up {
   display: flex;
-  align-items: flex-end;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
   padding: 0 14px 14px;
-  height: 16px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 16px;
 }
-.minibar {
+.next-dot {
+  flex: none;
   width: 6px;
-  border-radius: 2px;
+  height: 14px;
+  border-radius: 3px;
+}
+.next-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.next-up-done {
+  font-style: italic;
 }
 
 /* Task ----------------------------------------------------------------------*/
@@ -270,6 +325,96 @@ body {
   opacity: 0.5;
   cursor: pointer;
   padding: 0 2px;
+}
+
+/* Confirm sheet -------------------------------------------------------------*/
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: oklch(0.22 0.01 95 / 0.4);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: orgo-fade 0.16s ease;
+}
+@keyframes orgo-fade {
+  from {
+    opacity: 0;
+  }
+}
+.sheet {
+  width: 100%;
+  max-width: 430px;
+  background: var(--surface);
+  border-radius: 22px 22px 0 0;
+  padding: 8px 20px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 40px oklch(0.22 0.01 95 / 0.18);
+  animation: orgo-rise 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes orgo-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+.sheet-grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: oklch(0.86 0.006 95);
+  margin: 0 auto 16px;
+}
+.sheet-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink-heading);
+}
+.sheet-body {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  margin-top: 6px;
+}
+.sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+.btn-danger {
+  background: oklch(0.55 0.18 25);
+}
+.btn-danger:active {
+  background: oklch(0.48 0.18 25);
+}
+/* Add-task sheet: the bucket's own colour, applied inline from sectionShade. */
+.sheet-tinted .sheet-grip {
+  opacity: 0.35;
+}
+.sheet-input {
+  width: 100%;
+  margin-top: 14px;
+  background: var(--surface);
+  border-width: 1.5px;
+  font-size: 16px; /* below 16px iOS zooms the page on focus */
+  font-weight: 500;
+}
+.sheet-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklch, currentColor 16%, transparent);
+}
+.btn:disabled {
+  opacity: 0.4;
+}
+
+.btn-quiet {
+  background: none;
+  color: var(--ink-2);
+}
+.btn-quiet:active {
+  background: oklch(0.95 0.005 95);
 }
 
 @media (prefers-reduced-motion: reduce) {
