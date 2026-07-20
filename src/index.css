@@ -281,6 +281,8 @@ body {
   padding: 9px 11px;
   border-radius: 11px;
   animation: orgo-in 0.18s ease;
+  cursor: pointer; /* tap opens the rename sheet */
+  -webkit-tap-highlight-color: transparent;
 }
 @keyframes orgo-in {
   from {

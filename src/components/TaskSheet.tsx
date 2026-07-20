@@ -5,17 +5,21 @@ import { sectionShade } from '../lib/shading'
 
 interface Props {
   bucket: Bucket
+  /** Present when renaming an existing task; absent when creating one. */
+  initialTitle?: string
   onSubmit: (title: string) => void
   onCancel: () => void
 }
 
 /**
- * Phone-first sheet for creating a task. Wears the colour of the bucket it will
- * land in, so the destination is legible before the task exists — same
- * sectionShade the day header uses, no second source of truth for the palette.
+ * Phone-first sheet for naming a task — new or existing. Wears the colour of the
+ * bucket the task lives in, so the destination is legible before the task
+ * exists — same sectionShade the day header uses, no second source of truth for
+ * the palette.
  */
-export function AddTaskSheet({ bucket, onSubmit, onCancel }: Props) {
-  const [title, setTitle] = useState('')
+export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
+  const editing = initialTitle !== undefined
+  const [title, setTitle] = useState(initialTitle ?? '')
   const inputRef = useRef<HTMLInputElement>(null)
   // Kept in a ref so the mount effect does not re-run on every parent render.
   const cancelRef = useRef(onCancel)
@@ -25,7 +29,11 @@ export function AddTaskSheet({ bucket, onSubmit, onCancel }: Props) {
   const preposition = bucket === 'backlog' ? 'in' : 'on'
 
   useEffect(() => {
-    inputRef.current?.focus()
+    const input = inputRef.current
+    input?.focus()
+    // Renaming opens on the existing name, so pre-select it: one keystroke
+    // replaces the lot, a tap still puts the caret where it landed.
+    input?.select()
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') cancelRef.current()
     }
@@ -40,10 +48,11 @@ export function AddTaskSheet({ bucket, onSubmit, onCancel }: Props) {
   }, [])
 
   const trimmed = title.trim()
+  const unchanged = editing && trimmed === initialTitle
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!trimmed) return
+    if (!trimmed || unchanged) return
     onSubmit(trimmed)
   }
 
@@ -53,15 +62,25 @@ export function AddTaskSheet({ bucket, onSubmit, onCancel }: Props) {
         className="sheet sheet-tinted"
         role="dialog"
         aria-modal="true"
-        aria-label={`New Task ${preposition} ${BUCKET_LABEL[bucket]}`}
+        aria-label={
+          editing
+            ? 'Rename task'
+            : `New Task ${preposition} ${BUCKET_LABEL[bucket]}`
+        }
         style={{ background: shade.background }}
         onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
       >
         <div className="sheet-grip" style={{ background: shade.accent }} />
         <h2 className="sheet-title" style={{ color: shade.label }}>
-          New Task {preposition}{' '}
-          <span style={{ color: shade.accent }}>{BUCKET_LABEL[bucket]}</span>
+          {editing ? (
+            'Rename task'
+          ) : (
+            <>
+              New Task {preposition}{' '}
+              <span style={{ color: shade.accent }}>{BUCKET_LABEL[bucket]}</span>
+            </>
+          )}
         </h2>
         <input
           ref={inputRef}
@@ -78,9 +97,9 @@ export function AddTaskSheet({ bucket, onSubmit, onCancel }: Props) {
             type="submit"
             className="btn"
             style={{ background: shade.accent }}
-            disabled={!trimmed}
+            disabled={!trimmed || unchanged}
           >
-            Add task
+            {editing ? 'Save' : 'Add task'}
           </button>
           <button type="button" className="btn btn-quiet" onClick={onCancel}>
             Cancel

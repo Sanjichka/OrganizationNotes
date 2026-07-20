@@ -13,6 +13,7 @@ interface Props {
   onToggleCollapse: (bucket: Bucket) => void
   onToggleTask: (task: Task) => void
   onDeleteTask: (task: Task) => void
+  onEditTask: (task: Task) => void
   onAdd: (bucket: Bucket) => void
 }
 
@@ -24,6 +25,7 @@ export function DaySection({
   onToggleCollapse,
   onToggleTask,
   onDeleteTask,
+  onEditTask,
   onAdd,
 }: Props) {
   const { setNodeRef } = useDroppable({ id: `bucket:${bucket}` })
@@ -87,6 +89,7 @@ export function DaySection({
                 shade={openShade(bucket, i, n)}
                 onToggle={onToggleTask}
                 onDelete={onDeleteTask}
+                onEdit={onEditTask}
               />
             ))}
           </SortableContext>
@@ -97,6 +100,7 @@ export function DaySection({
               shade={doneShade(bucket)}
               onToggle={onToggleTask}
               onDelete={onDeleteTask}
+              onEdit={onEditTask}
             />
           ))}
           {tasks.length === 0 && <p className="empty">Nothing here.</p>}

@@ -26,11 +26,12 @@ import {
   setDone,
   moveTask,
   deleteTask,
+  renameTask,
 } from '../data/tasks'
 import { DaySection } from './DaySection'
 import { TaskCard } from './TaskCard'
 import { ConfirmDialog } from './ConfirmDialog'
-import { AddTaskSheet } from './AddTaskSheet'
+import { TaskSheet } from './TaskSheet'
 
 export function Board({ session }: { session: Session }) {
   const userId = session.user.id
@@ -43,6 +44,8 @@ export function Board({ session }: { session: Session }) {
   const [pendingDelete, setPendingDelete] = useState<Task | null>(null)
   // The bucket a new task is being composed for, or null when the sheet is shut.
   const [addingTo, setAddingTo] = useState<Bucket | null>(null)
+  // The task whose name is being edited, or null when the sheet is shut.
+  const [editing, setEditing] = useState<Task | null>(null)
 
   const dates = useMemo(() => weekDates(), [])
   const today = useMemo(() => todayBucket(), [])
@@ -112,6 +115,18 @@ export function Board({ session }: { session: Session }) {
       const updated = await setDone(task, !task.done, byBucket[task.bucket])
       upsertLocal(updated)
     } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  async function handleRename(task: Task, title: string) {
+    setEditing(null)
+    const prev = task
+    upsertLocal({ ...task, title })
+    try {
+      upsertLocal(await renameTask(task.id, title))
+    } catch (e) {
+      upsertLocal(prev)
       setError((e as Error).message)
     }
   }
@@ -254,6 +269,7 @@ export function Board({ session }: { session: Session }) {
               onToggleCollapse={toggleCollapse}
               onToggleTask={handleToggle}
               onDeleteTask={setPendingDelete}
+              onEditTask={setEditing}
               onAdd={setAddingTo}
             />
           ))}
@@ -265,16 +281,26 @@ export function Board({ session }: { session: Session }) {
               shade={openShade(activeTask.bucket, 0, 1)}
               onToggle={() => {}}
               onDelete={() => {}}
+              onEdit={() => {}}
             />
           ) : null}
         </DragOverlay>
       </DndContext>
 
       {addingTo && (
-        <AddTaskSheet
+        <TaskSheet
           bucket={addingTo}
           onSubmit={(title) => handleAdd(addingTo, title)}
           onCancel={() => setAddingTo(null)}
+        />
+      )}
+
+      {editing && (
+        <TaskSheet
+          bucket={editing.bucket}
+          initialTitle={editing.title}
+          onSubmit={(title) => handleRename(editing, title)}
+          onCancel={() => setEditing(null)}
         />
       )}
 

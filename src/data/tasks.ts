@@ -53,6 +53,17 @@ export async function setDone(task: Task, done: boolean, siblings: Task[]): Prom
   return data as Task
 }
 
+export async function renameTask(taskId: string, title: string): Promise<Task> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({ title: title.trim() })
+    .eq('id', taskId)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as Task
+}
+
 export async function moveTask(
   taskId: string,
   bucket: Bucket,
