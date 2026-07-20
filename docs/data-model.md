@@ -1,0 +1,184 @@
+# Data Model
+
+Postgres, via Supabase. Single user, but authenticated and row-level-secured so
+the data is not publicly readable.
+
+---
+
+## 1. Schema
+
+```sql
+create type task_bucket as enum
+  ('mon','tue','wed','thu','fri','sat','sun','backlog');
+
+create table tasks (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users(id) on delete cascade,
+
+  title         text not null
+                  check (length(btrim(title)) between 1 and 200),
+  bucket        task_bucket not null,
+  date          date,
+  position      double precision not null,
+
+  done          boolean not null default false,
+  completed_at  timestamptz,
+
+  duration_min  integer check (duration_min > 0),
+  tag           text,
+
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+
+  -- backlog tasks have no date; dated tasks are never in the backlog
+  constraint backlog_has_no_date
+    check ((bucket = 'backlog') = (date is null)),
+
+  -- done and completed_at can never disagree
+  constraint done_matches_completed_at
+    check (done = (completed_at is not null))
+);
+
+create index tasks_user_bucket_idx
+  on tasks (user_id, bucket, done, position);
+
+create index tasks_user_date_idx
+  on tasks (user_id, date)
+  where date is not null;
+```
+
+The two check constraints are the important part. They make the impossible
+states — a backlog task carrying a date, a task marked done with no completion
+timestamp — unrepresentable rather than merely discouraged. The weekly review
+depends entirely on `completed_at` being trustworthy.
+
+### `updated_at`
+
+```sql
+create function touch_updated_at() returns trigger
+language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end $$;
+
+create trigger tasks_touch
+  before update on tasks
+  for each row execute function touch_updated_at();
+```
+
+### Rollover bookkeeping
+
+Carry-over runs on the client and must not run twice for the same day.
+
+```sql
+create table user_state (
+  user_id           uuid primary key references auth.users(id) on delete cascade,
+  last_rollover_on  date,
+  updated_at        timestamptz not null default now()
+);
+```
+
+---
+
+## 2. Row-level security
+
+```sql
+alter table tasks      enable row level security;
+alter table user_state enable row level security;
+
+create policy "own tasks" on tasks
+  for all
+  using      (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "own state" on user_state
+  for all
+  using      (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```
+
+`for all` covers select, insert, update and delete. `with check` is what stops a
+client writing rows attributed to somebody else — `using` alone would not.
+
+---
+
+## 3. Ordering
+
+`position` is a **fractional rank**, not an index. Moving a task between two
+neighbours means writing one row:
+
+```
+new_position = (position_above + position_below) / 2
+```
+
+- Dropped at the top: `first_position - 1`
+- Dropped at the bottom: `last_position + 1`
+- Into an empty bucket: `0`
+
+This keeps a drag to a single-row update rather than renumbering the whole day.
+
+**Precision.** `double precision` survives roughly 50 consecutive midpoint
+insertions between the same pair before the gap collapses. That is far beyond
+realistic use, but the failure is silent and ugly, so guard it: if a computed gap
+falls below `1e-6`, renumber that bucket to `0, 1, 2, …` and retry. A dozen lines,
+written once.
+
+### Canonical sort
+
+```sql
+select * from tasks
+where user_id = auth.uid() and bucket = $1
+order by done asc, completed_at asc nulls first, position asc;
+```
+
+Which produces exactly the spec's ordering:
+
+- open tasks first, by `position` — every open row has `completed_at = null`, so
+  they group together and fall through to `position`
+- completed tasks below, in completion order
+
+Use this sort everywhere. Do not re-sort ad hoc in components.
+
+---
+
+## 4. Carry-over
+
+Runs client-side on first open of a new day. See
+[`decisions.md`](decisions.md#d2--carry-over-trigger).
+
+**The invariant: it must be idempotent.** Running it twice in a row must be
+indistinguishable from running it once. Two devices, a refresh mid-run, a clock
+that jumps — all of these will happen.
+
+Procedure:
+
+1. Read `user_state.last_rollover_on`. If it equals today, stop.
+2. For each bucket whose date is now in the past, take the tasks where
+   `done = false`, **in `position` order**.
+3. Move them to the following day — or to `backlog` if the day was Sunday —
+   preserving relative order, placed **above** the tasks already there
+   (assign positions below the destination's current minimum).
+4. Leave completed tasks exactly where they are. They are the review's evidence.
+5. Set `last_rollover_on = today`.
+
+Steps 2–5 run in a single transaction — an RPC function is the natural fit, so a
+half-applied rollover is impossible.
+
+A task that goes several days untouched carries forward each night and keeps
+climbing. That is intended: it should become progressively harder to ignore.
+
+---
+
+## 5. Offline
+
+The local cache is a **read-only mirror**. Cache the current week and backlog on
+every successful fetch; serve it when the network is unavailable, with the UI in
+an explicit read-only state.
+
+No write queue. A queue implies conflict resolution, and reconciling reordered
+positions across a stale queue is exactly the class of bug that quietly corrupts
+the ordering. An honest "you're offline" is the better product.
+
+Carry-over does **not** run offline. It needs a durable `last_rollover_on` to
+stay idempotent.

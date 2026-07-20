@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Hanken Grotesk',system-ui,sans-serif;background:oklch(0.93 0.006 95);-webkit-font-smoothing:antialiased}
+  a{color:oklch(0.55 0.13 250);text-decoration:none}
+  a:hover{color:oklch(0.48 0.13 250)}
+  input{font-family:inherit}
+  .orgo-scroll::-webkit-scrollbar{width:0;height:0}
+  @keyframes orgo-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px">
+  <div style="width:402px;height:858px;background:#0a0a0b;border-radius:56px;padding:11px;box-shadow:0 40px 80px -20px rgba(0,0,0,0.45),0 0 0 2px rgba(0,0,0,0.6),inset 0 0 0 2px rgba(255,255,255,0.06)">
+    <div style="width:100%;height:100%;background:oklch(0.985 0.004 95);border-radius:46px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+
+      <!-- status bar -->
+      <div style="height:52px;flex:0 0 52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;font-size:14px;font-weight:600;color:oklch(0.25 0.01 95)">
+        <span style="font-family:'JetBrains Mono',monospace;letter-spacing:0.5px">{{ clock }}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:11px">▂▄▆</span>
+          <span style="font-size:12px">Wi-Fi</span>
+          <span style="width:24px;height:12px;border:1.5px solid oklch(0.25 0.01 95);border-radius:3px;display:inline-block;position:relative"><span style="position:absolute;inset:1.5px;right:6px;background:oklch(0.25 0.01 95);border-radius:1px"></span></span>
+        </div>
+      </div>
+
+      <!-- header -->
+      <div style="flex:0 0 auto;padding:6px 22px 14px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between">
+          <div>
+            <div style="font-size:30px;font-weight:700;letter-spacing:-0.02em;color:oklch(0.22 0.01 95)">Orgo</div>
+            <div style="font-size:13px;font-weight:500;color:oklch(0.55 0.01 95);margin-top:1px">{{ weekRange }}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:500;color:oklch(0.3 0.03 250);line-height:1">{{ weekPct }}%</div>
+            <div style="font-size:11px;font-weight:500;color:oklch(0.6 0.01 95);text-transform:uppercase;letter-spacing:0.06em">this week</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;background:oklch(0.94 0.005 95);border-radius:11px;padding:3px;gap:3px">
+          <button onClick="{{ setWeek }}" style="{{ weekTabStyle }}">Week</button>
+          <button onClick="{{ setReview }}" style="{{ reviewTabStyle }}">Review</button>
+        </div>
+      </div>
+
+      <!-- WEEK VIEW -->
+      <sc-if value="{{ isWeek }}" hint-placeholder-val="{{ true }}">
+      <div class="orgo-scroll" style="flex:1;overflow-y:auto;padding:0 14px 28px">
+        <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="4">
+          <div style="{{ sec.wrapStyle }}">
+            <!-- section header -->
+            <div onClick="{{ sec.onToggle }}" style="{{ sec.headerStyle }}">
+              <span style="{{ sec.dotStyle }}"></span>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:16px;font-weight:600;color:oklch(0.24 0.01 95)">{{ sec.label }}</span>
+                  <sc-if value="{{ sec.isToday }}" hint-placeholder-val="{{ true }}"><span style="{{ sec.todayPill }}">Today</span></sc-if>
+                </div>
+                <div style="font-size:12px;font-weight:500;color:oklch(0.6 0.01 95);margin-top:1px">{{ sec.sub }}</div>
+              </div>
+              <sc-if value="{{ sec.collapsed }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;gap:3px;align-items:center;margin-right:8px">
+                  <sc-for list="{{ sec.mini }}" as="m" hint-placeholder-count="3"><span style="{{ m.style }}"></span></sc-for>
+                </div>
+              </sc-if>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:oklch(0.55 0.01 95);margin-right:6px">{{ sec.countLabel }}</span>
+              <span style="{{ sec.chevronStyle }}">›</span>
+            </div>
+
+            <!-- section body -->
+            <sc-if value="{{ sec.open }}" hint-placeholder-val="{{ true }}">
+            <div onDragOver="{{ sec.onSectionDragOver }}" onDrop="{{ sec.onSectionDrop }}" style="padding:4px 8px 10px;display:flex;flex-direction:column;gap:5px">
+              <sc-for list="{{ sec.rows }}" as="t" hint-placeholder-count="2">
+                <div draggable="{{ t.draggable }}" onDragStart="{{ t.onDragStart }}" onDragOver="{{ t.onDragOver }}" onDrop="{{ t.onDrop }}" style="{{ t.rowStyle }}">
+                  <sc-if value="{{ t.notEditing }}" hint-placeholder-val="{{ true }}">
+                    <div onClick="{{ t.onToggle }}" style="{{ t.checkStyle }}">{{ t.checkMark }}</div>
+                    <div onClick="{{ t.onStartEdit }}" style="{{ t.textStyle }}">{{ t.text }}</div>
+                    <sc-if value="{{ t.showTime }}" hint-placeholder-val="{{ true }}"><span style="{{ t.timeStyle }}">{{ t.time }}</span></sc-if>
+                    <div onClick="{{ t.onDelete }}" style="{{ t.delStyle }}">×</div>
+                    <span style="{{ t.handleStyle }}">⠿</span>
+                  </sc-if>
+                  <sc-if value="{{ t.editing }}" hint-placeholder-val="{{ false }}">
+                    <input value="{{ editText }}" onChange="{{ onEditText }}" onKeyDown="{{ onEditKey }}" placeholder="Task" style="flex:1;min-width:0;border:none;background:rgba(255,255,255,0.6);border-radius:7px;padding:7px 9px;font-size:14px;font-weight:500;color:oklch(0.2 0.01 95);outline:none">
+                    <input value="{{ editTime }}" onChange="{{ onEditTime }}" onKeyDown="{{ onEditKey }}" placeholder="est" style="width:52px;border:none;background:rgba(255,255,255,0.6);border-radius:7px;padding:7px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;color:oklch(0.3 0.01 95);outline:none;text-align:center">
+                    <button onClick="{{ commitEdit }}" style="border:none;background:oklch(0.55 0.13 250);color:#fff;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer">✓</button>
+                  </sc-if>
+                </div>
+              </sc-for>
+
+              <!-- add -->
+              <sc-if value="{{ sec.notAdding }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ sec.onAddClick }}" style="display:flex;align-items:center;gap:8px;border:1.5px dashed oklch(0.82 0.01 95);background:transparent;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:500;color:oklch(0.55 0.01 95);cursor:pointer;font-family:inherit">
+                  <span style="font-size:16px;line-height:1">+</span> Add task
+                </button>
+              </sc-if>
+              <sc-if value="{{ sec.isAdding }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:6px;align-items:center;background:oklch(0.96 0.005 95);border-radius:10px;padding:6px">
+                  <input value="{{ draftText }}" onChange="{{ onDraftText }}" onKeyDown="{{ onDraftKey }}" placeholder="What needs doing?" style="flex:1;min-width:0;border:none;background:#fff;border-radius:7px;padding:8px 10px;font-size:14px;font-weight:500;color:oklch(0.2 0.01 95);outline:none">
+                  <input value="{{ draftTime }}" onChange="{{ onDraftTime }}" onKeyDown="{{ onDraftKey }}" placeholder="est" style="width:52px;border:none;background:#fff;border-radius:7px;padding:8px;font-size:12px;font-family:'JetBrains Mono',monospace;color:oklch(0.3 0.01 95);outline:none;text-align:center">
+                  <button onClick="{{ sec.commitAdd }}" style="border:none;background:oklch(0.55 0.13 250);color:#fff;width:32px;height:32px;border-radius:8px;font-size:16px;cursor:pointer">↵</button>
+                </div>
+              </sc-if>
+            </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <!-- REVIEW VIEW -->
+      <sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+      <div class="orgo-scroll" style="flex:1;overflow-y:auto;padding:4px 22px 28px">
+        <div style="background:oklch(0.97 0.004 95);border-radius:20px;padding:24px;display:flex;flex-direction:column;align-items:center;text-align:center">
+          <div style="position:relative;width:150px;height:150px">
+            <svg width="150" height="150" viewBox="0 0 150 150" style="transform:rotate(-90deg)">
+              <circle cx="75" cy="75" r="62" fill="none" stroke="oklch(0.9 0.005 95)" stroke-width="14"></circle>
+              <circle cx="75" cy="75" r="62" fill="none" stroke="oklch(0.55 0.13 250)" stroke-width="14" stroke-linecap="round" stroke-dasharray="{{ ringDash }}"></circle>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:38px;font-weight:500;color:oklch(0.24 0.02 250);line-height:1">{{ weekPct }}%</span>
+              <span style="font-size:12px;font-weight:500;color:oklch(0.55 0.01 95);margin-top:2px">completed</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:26px;margin-top:20px">
+            <div><div style="font-size:22px;font-weight:700;color:oklch(0.24 0.01 95)">{{ doneTotal }}</div><div style="font-size:11px;font-weight:500;color:oklch(0.58 0.01 95);text-transform:uppercase;letter-spacing:0.05em">done</div></div>
+            <div><div style="font-size:22px;font-weight:700;color:oklch(0.24 0.01 95)">{{ total }}</div><div style="font-size:11px;font-weight:500;color:oklch(0.58 0.01 95);text-transform:uppercase;letter-spacing:0.05em">planned</div></div>
+            <div><div style="font-size:22px;font-weight:700;color:oklch(0.5 0.13 40)">{{ backlogCount }}</div><div style="font-size:11px;font-weight:500;color:oklch(0.58 0.01 95);text-transform:uppercase;letter-spacing:0.05em">backlog</div></div>
+          </div>
+        </div>
+
+        <div style="font-size:13px;font-weight:600;color:oklch(0.5 0.01 95);text-transform:uppercase;letter-spacing:0.06em;margin:22px 4px 12px">By day</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <sc-for list="{{ reviewDays }}" as="d" hint-placeholder-count="7">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="width:9px;height:9px;border-radius:50%;flex:0 0 9px;background:{{ d.color }}"></span>
+              <span style="width:38px;font-size:13px;font-weight:600;color:oklch(0.3 0.01 95)">{{ d.short }}</span>
+              <div style="flex:1;height:10px;background:oklch(0.92 0.005 95);border-radius:6px;overflow:hidden">
+                <div style="{{ d.barStyle }}"></div>
+              </div>
+              <span style="width:48px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:oklch(0.5 0.01 95)">{{ d.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- home indicator -->
+      <div style="flex:0 0 22px;display:flex;align-items:center;justify-content:center"><span style="width:126px;height:5px;border-radius:3px;background:oklch(0.2 0.01 95)"></span></div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:914},&quot;rainbow&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Color system&quot;},&quot;chroma&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0.13,&quot;min&quot;:0.04,&quot;max&quot;:0.18,&quot;step&quot;:0.01,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Color system&quot;},&quot;showTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    const t = [
+      ['mon',[['Standup + sprint planning','45m',false],['Review PR #482','30m',true],['Dentist — 3pm','1h',false],['Reply to landlord','10m',false]]],
+      ['tue',[['Design review deck','1h',false],['Gym — legs','45m',false],['Grocery run','30m',true],['Call mom','20m',false]]],
+      ['wed',[['Finish API integration','2h',false],['Lunch w/ Sam','1h',false],['Pick up dry cleaning','15m',false],['Water plants','5m',true]]],
+      ['thu',[['QA the release','1h30m',false],['Renew passport','30m',false],['Yoga','45m',false]]],
+      ['fri',[['Ship v2.1','1h',false],['Team retro','30m',false],['Book flights for August','40m',false],['Laundry','30m',false]]],
+      ['sat',[['Farmers market','1h',false],['Fix leaky faucet','45m',false],['Read','30m',false]]],
+      ['sun',[['Meal prep','1h30m',false],['Sunday reset / plan week','30m',false],['Call grandpa','20m',false]]],
+      ['backlog',[['Set up dentist follow-up','',false],['Research standing desks','20m',false],['Backup photos','30m',false]]],
+    ];
+    this._id = 1;
+    const containers = {};
+    t.forEach(([k,arr])=>{ containers[k] = arr.map(([text,time,done])=>({id:this._id++,text,time,done})); });
+    Object.keys(containers).forEach(k=>containers[k]=this.norm(containers[k]));
+    const todayIdx = (new Date().getDay()+6)%7;
+    const keys=['mon','tue','wed','thu','fri','sat','sun'];
+    const open={}; ['mon','tue','wed','thu','fri','sat','sun','backlog'].forEach(k=>open[k]=false);
+    open[keys[todayIdx]]=true;
+    this.state = { view:'week', containers, open, todayIdx, addingKey:null, draftText:'', draftTime:'', editingId:null, editText:'', editTime:'' };
+  }
+  norm(a){ return [...a.filter(x=>!x.done), ...a.filter(x=>x.done)]; }
+  meta(){
+    const rainbow = this.props.rainbow ?? true;
+    const base=[['mon','Monday','Mon',25],['tue','Tuesday','Tue',60],['wed','Wednesday','Wed',130],['thu','Thursday','Thu',165],['fri','Friday','Fri',225],['sat','Saturday','Sat',280],['sun','Sunday','Sun',330]];
+    return base.map(m=>({key:m[0],label:m[1],short:m[2],hue:rainbow?m[3]:250}));
+  }
+  chroma(){ return this.props.chroma ?? 0.13; }
+  color(hue,rank,total,done,neutral){
+    const C = neutral?0.006:this.chroma();
+    if(done) return { bg:`oklch(0.955 ${neutral?0.004:C*0.16} ${hue})`, fg:`oklch(0.63 ${neutral?0.006:C*0.24} ${hue})`, light:true };
+    const tt = total>1 ? rank/(total-1) : 0;
+    const L = 0.60 + tt*0.28;
+    const light = L >= 0.70;
+    return { bg:`oklch(${L.toFixed(3)} ${C} ${hue})`, fg: light?`oklch(0.32 ${(C*0.4).toFixed(3)} ${hue})`:`oklch(0.99 0.008 ${hue})`, L, light };
+  }
+  toggle(key){ this.setState(s=>({open:{...s.open,[key]:!s.open[key]}})); }
+  toggleDone(key,id){ this.setState(s=>{ const c={...s.containers}; c[key]=this.norm(c[key].map(t=>t.id===id?{...t,done:!t.done}:t)); return {containers:c}; }); }
+  del(key,id){ this.setState(s=>{ const c={...s.containers}; c[key]=c[key].filter(t=>t.id!==id); return {containers:c}; }); }
+  startEdit(t){ this.setState({editingId:t.id,editText:t.text,editTime:t.time,addingKey:null}); }
+  commitEdit(){ const id=this.state.editingId; if(id==null) return; this.setState(s=>{ const c={...s.containers}; Object.keys(c).forEach(k=>{ c[k]=c[k].map(t=>t.id===id?{...t,text:s.editText.trim()||t.text,time:s.editTime.trim()}:t);}); return {containers:c,editingId:null}; }); }
+  openAdd(key){ this.setState({addingKey:key,draftText:'',draftTime:'',editingId:null}); }
+  commitAdd(key){ const text=this.state.draftText.trim(); if(!text) return; this.setState(s=>{ const c={...s.containers}; c[key]=this.norm([...c[key],{id:this._id++,text,time:s.draftTime.trim(),done:false}]); return {containers:c,draftText:'',draftTime:''}; }); }
+  move(fromKey,id,toKey,index){
+    this.setState(s=>{
+      const c={...s.containers};
+      if(fromKey===toKey){ const a=[...c[fromKey]]; const i=a.findIndex(t=>t.id===id); if(i<0) return {}; const [t]=a.splice(i,1); const idx=Math.max(0,Math.min(index,a.length)); a.splice(idx,0,t); c[fromKey]=this.norm(a); }
+      else { const fa=[...c[fromKey]]; const i=fa.findIndex(t=>t.id===id); if(i<0) return {}; const [t]=fa.splice(i,1); const ta=[...c[toKey]]; const idx=Math.max(0,Math.min(index,ta.length)); ta.splice(idx,0,t); c[fromKey]=fa; c[toKey]=this.norm(ta); }
+      return {containers:c};
+    });
+  }
+  weekDates(){
+    const now=new Date(); const d=new Date(now); d.setDate(now.getDate()-this.state.todayIdx);
+    const end=new Date(d); end.setDate(d.getDate()+6);
+    const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const same = d.getMonth()===end.getMonth();
+    return `${mo[d.getMonth()]} ${d.getDate()} – ${same?'':mo[end.getMonth()]+' '}${end.getDate()}`;
+  }
+  renderVals(){
+    const s=this.state, meta=this.meta(), showTimes=this.props.showTimes ?? true;
+    const now=new Date(); const clock=`${((now.getHours()+11)%12)+1}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const todayKey = meta[s.todayIdx].key;
+    const list=[...meta, {key:'backlog',label:'Backlog',short:'Bklg',hue:35,neutral:true}];
+
+    const buildRows=(m)=>{
+      const arr=s.containers[m.key]; const inc=arr.filter(t=>!t.done); const total=inc.length;
+      let rank=0;
+      return arr.map((t,arrIdx)=>{
+        const isInc=!t.done; const r=isInc?rank++:0;
+        const col=this.color(m.hue, r, total, t.done, m.neutral);
+        const editing=s.editingId===t.id;
+        return {
+          id:t.id, text:t.text, time:t.time, done:t.done,
+          showTime: showTimes && !!t.time,
+          editing, notEditing:!editing, draggable:!t.done,
+          checkMark: t.done?'✓':'',
+          rowStyle:`display:flex;align-items:center;gap:10px;background:${col.bg};border-radius:11px;padding:9px 11px;animation:orgo-in 0.18s ease;cursor:default`,
+          checkStyle:`flex:0 0 21px;width:21px;height:21px;border-radius:50%;border:2px solid ${col.fg};display:flex;align-items:center;justify-content:center;font-size:12px;color:${col.light?col.bg:col.fg};background:${t.done?col.fg:'transparent'};cursor:pointer`,
+          textStyle:`flex:1;min-width:0;font-size:14px;font-weight:500;color:${col.fg};cursor:text;${t.done?'text-decoration:line-through;opacity:0.75':''};overflow:hidden;text-overflow:ellipsis;white-space:nowrap`,
+          timeStyle:`font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;color:${col.fg};background:${col.light?'rgba(0,0,0,0.06)':'rgba(255,255,255,0.20)'};padding:3px 7px;border-radius:6px;white-space:nowrap`,
+          delStyle:`flex:0 0 auto;font-size:18px;line-height:1;color:${col.fg};opacity:0.45;cursor:pointer;padding:0 2px`,
+          handleStyle:`flex:0 0 auto;font-size:14px;color:${col.fg};opacity:${t.done?0.2:0.5};cursor:grab`,
+          onToggle:()=>this.toggleDone(m.key,t.id),
+          onDelete:(e)=>{e.stopPropagation();this.del(m.key,t.id);},
+          onStartEdit:()=>this.startEdit(t),
+          onDragStart:(e)=>{this._drag={key:m.key,id:t.id};e.dataTransfer.effectAllowed='move';},
+          onDragOver:(e)=>{e.preventDefault();this._drop={key:m.key,index:arrIdx};},
+          onDrop:(e)=>{e.preventDefault();e.stopPropagation();if(this._drag)this.move(this._drag.key,this._drag.id,m.key,arrIdx);this._drag=null;},
+        };
+      });
+    };
+
+    const sections=list.map(m=>{
+      const arr=s.containers[m.key]; const count=arr.length; const done=arr.filter(t=>t.done).length;
+      const inc=arr.filter(t=>!t.done); const open=s.open[m.key]; const isToday=m.key===todayKey;
+      const barCol=this.color(m.hue,0,2,false,m.neutral);
+      const mini=inc.slice(0,6).map((t,i)=>({style:`width:6px;height:${14-i}px;border-radius:2px;background:${this.color(m.hue,i,Math.max(inc.length,2),false,m.neutral).bg}`}));
+      return {
+        key:m.key,label:m.label,isToday,open,collapsed:!open,
+        sub: count? `${done}/${count} done` : 'empty',
+        countLabel: `${done}/${count}`,
+        mini,
+        rows: buildRows(m),
+        isAdding: s.addingKey===m.key, notAdding: s.addingKey!==m.key,
+        wrapStyle:`margin-bottom:8px;border-radius:16px;overflow:hidden;background:${open?'oklch(0.975 0.004 95)':'transparent'};${isToday?`box-shadow:0 0 0 2px ${barCol.bg}`:''}`,
+        headerStyle:`display:flex;align-items:center;gap:11px;padding:12px 14px;cursor:pointer;user-select:none`,
+        dotStyle:`flex:0 0 11px;width:11px;height:11px;border-radius:50%;background:${barCol.bg}`,
+        todayPill:`font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:${barCol.light?barCol.fg:barCol.bg};background:${barCol.bg};padding:2px 7px;border-radius:5px`,
+        chevronStyle:`font-size:20px;color:oklch(0.6 0.01 95);transition:transform 0.2s;transform:rotate(${open?90:0}deg)`,
+        onToggle:()=>this.toggle(m.key),
+        onAddClick:()=>this.openAdd(m.key),
+        commitAdd:()=>this.commitAdd(m.key),
+        onSectionDragOver:(e)=>{e.preventDefault();},
+        onSectionDrop:(e)=>{e.preventDefault();if(this._drag)this.move(this._drag.key,this._drag.id,m.key,s.containers[m.key].length);this._drag=null;},
+      };
+    });
+
+    // totals over Mon-Sun
+    let total=0,doneTotal=0;
+    meta.forEach(m=>{ const a=s.containers[m.key]; total+=a.length; doneTotal+=a.filter(t=>t.done).length; });
+    const weekPct= total? Math.round(doneTotal/total*100):0;
+    const circ=2*Math.PI*62;
+    const reviewDays=meta.map(m=>{ const a=s.containers[m.key]; const tot=a.length; const dn=a.filter(t=>t.done).length; const pct=tot?Math.round(dn/tot*100):0; const col=this.color(m.hue,0,2,false,false);
+      return {short:m.short,color:col.bg,label:`${dn}/${tot}`,barStyle:`height:100%;width:${pct}%;background:${col.bg};border-radius:6px;transition:width 0.3s`}; });
+
+    const tabOn='flex:1;border:none;border-radius:9px;padding:8px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;background:#fff;color:oklch(0.22 0.01 95);box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+    const tabOff='flex:1;border:none;border-radius:9px;padding:8px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:oklch(0.55 0.01 95)';
+
+    return {
+      clock, weekRange:this.weekDates(), weekPct, doneTotal, total, backlogCount:s.containers.backlog.length,
+      isWeek:s.view==='week', isReview:s.view==='review',
+      setWeek:()=>this.setState({view:'week'}), setReview:()=>this.setState({view:'review'}),
+      weekTabStyle: s.view==='week'?tabOn:tabOff, reviewTabStyle: s.view==='review'?tabOn:tabOff,
+      sections, reviewDays, ringDash:`${(circ*weekPct/100).toFixed(1)} ${circ.toFixed(1)}`,
+      draftText:s.draftText, draftTime:s.draftTime, editText:s.editText, editTime:s.editTime,
+      onDraftText:(e)=>this.setState({draftText:e.target.value}),
+      onDraftTime:(e)=>this.setState({draftTime:e.target.value}),
+      onDraftKey:(e)=>{ if(e.key==='Enter')this.commitAdd(s.addingKey); if(e.key==='Escape')this.setState({addingKey:null}); },
+      onEditText:(e)=>this.setState({editText:e.target.value}),
+      onEditTime:(e)=>this.setState({editTime:e.target.value}),
+      onEditKey:(e)=>{ if(e.key==='Enter')this.commitEdit(); if(e.key==='Escape')this.setState({editingId:null}); },
+      commitEdit:()=>this.commitEdit(),
+    };
+  }
+}
+</script>
+</body>
+</html>
