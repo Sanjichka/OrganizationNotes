@@ -1,7 +1,7 @@
 export type Page = 'tasks' | 'stats'
 
 const PAGES: { id: Page; label: string }[] = [
-  { id: 'tasks', label: 'Tasks' },
+  { id: 'tasks', label: 'WEEK' },
   { id: 'stats', label: 'Stats' },
 ]
 
