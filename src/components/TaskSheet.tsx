@@ -20,6 +20,10 @@ interface Props {
 export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
   const editing = initialTitle !== undefined
   const [title, setTitle] = useState(initialTitle ?? '')
+  // Height the on-screen keyboard steals from the bottom. iOS doesn't shrink the
+  // layout viewport when the keyboard opens, so a bottom-anchored sheet slides
+  // in behind it — we read the visual viewport and lift the sheet by that much.
+  const [keyboardInset, setKeyboardInset] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   // Kept in a ref so the mount effect does not re-run on every parent render.
   const cancelRef = useRef(onCancel)
@@ -41,9 +45,24 @@ export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
     // Stop the board scrolling behind the sheet.
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+
+    // Lift the sheet above the keyboard. The keyboard's height is the slice of
+    // the layout viewport the visual viewport no longer covers at the bottom.
+    const vv = window.visualViewport
+    function onViewport() {
+      if (!vv) return
+      const inset = window.innerHeight - vv.height - vv.offsetTop
+      setKeyboardInset(Math.max(0, Math.round(inset)))
+    }
+    vv?.addEventListener('resize', onViewport)
+    vv?.addEventListener('scroll', onViewport)
+    onViewport()
+
     return () => {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      vv?.removeEventListener('resize', onViewport)
+      vv?.removeEventListener('scroll', onViewport)
     }
   }, [])
 
@@ -57,7 +76,11 @@ export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
   }
 
   return (
-    <div className="scrim" onClick={onCancel}>
+    <div
+      className="scrim"
+      style={{ paddingBottom: keyboardInset }}
+      onClick={onCancel}
+    >
       <form
         className="sheet sheet-tinted"
         role="dialog"

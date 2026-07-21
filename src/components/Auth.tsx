@@ -1,5 +1,12 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { DAY_BUCKETS } from '../lib/buckets'
+import { openShade } from '../lib/shading'
+
+// The week's seven hues at full weight — the same gradient the board reads as,
+// so the sign-in screen carries the app's identity before any data has loaded.
+// Colours come from the one shared shading formula, never hardcoded here.
+const WEEK_HUES = DAY_BUCKETS.map((b) => openShade(b, 0, 1).background)
 
 export function Auth() {
   const [email, setEmail] = useState('')
@@ -34,15 +41,36 @@ export function Auth() {
 
   return (
     <div className="auth">
-      <h1 className="app-title">Orgo</h1>
+      <div className="auth-brand">
+        <div className="auth-week" aria-hidden="true">
+          {WEEK_HUES.map((c, i) => (
+            <span
+              key={i}
+              className="auth-week-bar"
+              style={{ background: c }}
+            />
+          ))}
+        </div>
+        <h1 className="app-title">Orgo</h1>
+        <p className="auth-tagline">Your week, one glance.</p>
+      </div>
+
       {sent ? (
-        <p className="auth-note">
-          Check <strong>{email}</strong> for a magic link, then open it on this
-          device.
-        </p>
+        <div className="auth-sent">
+          <p className="auth-note">
+            Check <strong>{email}</strong> for a magic link, then open it on this
+            device.
+          </p>
+          <button
+            type="button"
+            className="signout"
+            onClick={() => setSent(false)}
+          >
+            ← back to sign in
+          </button>
+        </div>
       ) : (
         <form onSubmit={signInWithPassword} className="auth-form">
-          <p className="auth-note">Sign in.</p>
           <input
             type="email"
             required

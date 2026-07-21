@@ -28,7 +28,7 @@ export function DaySection({
   onEditTask,
   onAdd,
 }: Props) {
-  const { setNodeRef } = useDroppable({ id: `bucket:${bucket}` })
+  const { setNodeRef, isOver } = useDroppable({ id: `bucket:${bucket}` })
   const open = tasks.filter((t) => !t.done)
   const done = tasks.filter((t) => t.done)
   const n = open.length
@@ -36,10 +36,20 @@ export function DaySection({
 
   return (
     <section
+      // A collapsed day has no section-body to catch a drop, so the whole
+      // section becomes the drop target — otherwise you could never move a task
+      // into a folded day (which is all of them but today, on load).
+      ref={collapsed ? setNodeRef : undefined}
       className="section"
       style={{
         background: sec.background,
         ...(isToday ? { boxShadow: `0 0 0 2px ${sec.accent}` } : null),
+        // Drop-target cue: a bolder accent ring while a task hovers the folded
+        // day. No background tint — accent is an oklch() string, and the colour
+        // system stays OKLCH end to end (see CLAUDE.md).
+        ...(collapsed && isOver
+          ? { boxShadow: `0 0 0 3px ${sec.accent}` }
+          : null),
       }}
     >
       <header className="section-head" onClick={() => onToggleCollapse(bucket)}>

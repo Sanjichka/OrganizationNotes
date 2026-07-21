@@ -10,14 +10,8 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { supabase } from '../lib/supabase'
 import type { Bucket, Task } from '../lib/types'
-import {
-  ALL_BUCKETS,
-  weekDates,
-  todayBucket,
-  weekRangeLabel,
-} from '../lib/buckets'
+import { ALL_BUCKETS, weekDates, todayBucket } from '../lib/buckets'
 import { between, canonicalSort } from '../lib/position'
 import { openShade } from '../lib/shading'
 import {
@@ -32,8 +26,20 @@ import { DaySection } from './DaySection'
 import { TaskCard } from './TaskCard'
 import { ConfirmDialog } from './ConfirmDialog'
 import { TaskSheet } from './TaskSheet'
+import { AppHeader } from './AppHeader'
+import { type Page } from './Tabs'
 
-export function Board({ session }: { session: Session }) {
+export function Board({
+  session,
+  page,
+  onChange,
+  onOpenProfile,
+}: {
+  session: Session
+  page: Page
+  onChange: (p: Page) => void
+  onOpenProfile: () => void
+}) {
   const userId = session.user.id
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -234,22 +240,13 @@ export function Board({ session }: { session: Session }) {
 
   return (
     <div className="board">
-      <header className="app-header">
-        <div>
-          <h1 className="app-title">Orgo</h1>
-          <p className="week-range">{weekRangeLabel()}</p>
-        </div>
-        <div className="week-pct-wrap">
-          <span className="week-pct">{weekPct}%</span>
-          <button
-            className="signout"
-            onClick={() => supabase.auth.signOut()}
-            type="button"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        user={session.user}
+        weekPct={weekPct}
+        page={page}
+        onChange={onChange}
+        onOpenProfile={onOpenProfile}
+      />
 
       {error && <p className="board-error">{error}</p>}
 

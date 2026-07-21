@@ -30,8 +30,7 @@ body {
   margin: 0 auto;
   min-height: 100dvh;
   background: var(--surface);
-  /* Clears the fixed bottom nav so the last task is never behind it. */
-  padding-bottom: calc(62px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .mono {
@@ -40,30 +39,80 @@ body {
 
 /* Auth ---------------------------------------------------------------------*/
 .auth {
-  padding: 64px 24px;
+  min-height: 100dvh;
+  padding: 24px calc(24px + env(safe-area-inset-left)) 40px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  justify-content: center;
+  gap: 28px;
+  animation: orgo-in 0.28s ease;
+}
+/* The brand block echoes the board header: the week's seven hues, then the
+   title, then a quiet tagline. */
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+/* The signature week gradient — the same colours the board reads as, so the
+   app's identity is present before any data loads. */
+.auth-week {
+  display: flex;
+  gap: 4px;
+}
+.auth-week-bar {
+  width: 24px;
+  height: 8px;
+  border-radius: 3px;
+}
+.auth-tagline {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-2);
 }
 .auth-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
+.auth-sent {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  text-align: center;
+}
 .auth-note {
   color: var(--ink-2);
   font-size: 14px;
+  line-height: 1.45;
 }
 .auth-error {
   color: oklch(0.55 0.18 25);
   font-size: 13px;
 }
 .input {
-  border: 1px solid oklch(0.85 0.005 95);
+  background: var(--surface);
+  border: 1.5px solid oklch(0.88 0.005 95);
   border-radius: 7px;
-  padding: 11px 12px;
-  font-size: 15px;
+  padding: 12px;
+  /* 16px keeps iOS from zooming the page on focus (see sheet-input). */
+  font-size: 16px;
+  font-weight: 500;
   font-family: inherit;
+  color: var(--ink);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.input::placeholder {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 16%, transparent);
 }
 .btn {
   background: var(--accent);
@@ -74,59 +123,91 @@ body {
   font-size: 15px;
   font-weight: 600;
   font-family: inherit;
+  margin-top: 2px;
 }
 .btn:active {
   background: var(--accent-hover);
 }
 
-/* Bottom nav ----------------------------------------------------------------*/
-.tabs {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
+/* View switch (segmented toggle, inside the header) -------------------------*/
+.seg {
+  margin-top: 14px;
   display: flex;
-  gap: 6px;
-  /* A deeper warm plane than the app surface, lifted by a soft upward
-     shadow — the nav reads as sitting above the board, not part of it. */
-  background: oklch(0.955 0.005 95);
-  border-top: 1px solid oklch(0.9 0.005 95);
-  box-shadow: 0 -6px 20px oklch(0.22 0.01 95 / 0.07);
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  gap: 3px;
+  padding: 3px;
+  background: oklch(0.94 0.005 95);
+  border-radius: 11px;
 }
-.tab {
+.seg-btn {
   flex: 1;
   border: none;
-  border-radius: 10px;
+  border-radius: 9px;
   background: none;
-  padding: 9px 0;
+  padding: 8px;
   font-family: inherit;
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: 600;
   color: var(--ink-2);
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
-/* The selected tab is the one raised piece of surface in the bar. */
-.tab-active {
+/* The selected view is the one raised piece of surface in the track. */
+.seg-btn-active {
   background: var(--surface);
-  color: var(--accent);
-  font-weight: 600;
-  box-shadow: 0 1px 3px oklch(0.22 0.01 95 / 0.1);
+  color: var(--ink);
+  box-shadow: 0 1px 3px oklch(0.22 0.01 95 / 0.08);
 }
 
 /* Header --------------------------------------------------------------------*/
 .board {
-  padding: 14px;
+  padding: 0 14px 24px;
 }
+/* Full-bleed and sticky, so the avatar and the view switch stay reachable while
+   the list scrolls beneath. The negative side margin cancels .board's padding. */
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0 -14px 6px;
+  padding: 10px 22px 14px;
+  background: var(--surface);
+  box-shadow: 0 1px 0 oklch(0.9 0.005 95);
+}
+.app-header-row {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 8px 0 16px;
+  align-items: center;
+  gap: 11px;
+}
+.avatar-btn {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--accent);
+  background-size: cover;
+  background-position: center;
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px oklch(0.22 0.01 95 / 0.12);
+}
+.app-header-id {
+  flex: 1;
+  min-width: 0;
+}
+.app-header-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .app-title {
   font-size: 30px;
@@ -137,15 +218,26 @@ body {
   font-size: 13px;
   font-weight: 500;
   color: var(--ink-2);
+  margin-top: 1px;
 }
 .week-pct-wrap {
+  flex: none;
   text-align: right;
 }
 .week-pct {
   font-family: 'JetBrains Mono', monospace;
   font-size: 26px;
   font-weight: 500;
+  line-height: 1;
+  color: oklch(0.3 0.03 250);
   display: block;
+}
+.week-pct-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
 }
 .signout {
   background: none;
@@ -155,6 +247,123 @@ body {
   font-family: inherit;
   padding: 4px 0;
   cursor: pointer;
+}
+/* Review --------------------------------------------------------------------*/
+.review {
+  padding: 4px 8px;
+  animation: orgo-in 0.2s ease;
+}
+.review-card {
+  background: oklch(0.97 0.004 95);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.ring {
+  position: relative;
+  width: 150px;
+  height: 150px;
+}
+/* Rotate so the progress arc starts at 12 o'clock. */
+.ring-svg {
+  transform: rotate(-90deg);
+}
+.ring-svg circle:last-child {
+  transition: stroke-dasharray 0.4s ease;
+}
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.ring-pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 38px;
+  font-weight: 500;
+  line-height: 1;
+  color: oklch(0.24 0.02 250);
+}
+.ring-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+.review-figures {
+  display: flex;
+  gap: 26px;
+  margin-top: 20px;
+}
+.figure-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-heading);
+}
+.figure-value-backlog {
+  color: oklch(0.5 0.13 40);
+}
+.figure-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: oklch(0.58 0.01 95);
+}
+.review-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  margin: 22px 4px 12px;
+}
+.by-day {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.by-day-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.by-day-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.by-day-name {
+  width: 38px;
+  font-size: 13px;
+  font-weight: 600;
+  color: oklch(0.3 0.01 95);
+}
+.by-day-track {
+  flex: 1;
+  height: 10px;
+  background: oklch(0.92 0.005 95);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.by-day-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+.by-day-count {
+  width: 48px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
 }
 
 .board-error {
@@ -340,6 +549,9 @@ body {
   align-items: flex-end;
   justify-content: center;
   animation: orgo-fade 0.16s ease;
+  /* Padding-bottom is driven by the keyboard height; ease it so the sheet
+     tracks the keyboard rather than snapping. */
+  transition: padding-bottom 0.2s ease;
 }
 @keyframes orgo-fade {
   from {
@@ -417,6 +629,208 @@ body {
 }
 .btn-quiet:active {
   background: oklch(0.95 0.005 95);
+}
+
+/* Profile -------------------------------------------------------------------*/
+.profile {
+  min-height: 100dvh;
+  animation: orgo-in 0.2s ease;
+}
+.profile-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 8px;
+}
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: oklch(0.94 0.005 95);
+  border-radius: 11px;
+  padding: 8px 13px 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: oklch(0.28 0.01 95);
+  cursor: pointer;
+}
+.back-chevron {
+  font-size: 18px;
+  line-height: 1;
+}
+.profile-body {
+  padding: 12px 22px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.avatar-big-wrap {
+  position: relative;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+.avatar-big {
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  background-size: cover;
+  background-position: center;
+  color: white;
+  font-size: 38px;
+  font-weight: 700;
+  box-shadow: 0 6px 18px -4px oklch(0.22 0.01 95 / 0.25);
+}
+.avatar-camera {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  color: white;
+  display: grid;
+  place-items: center;
+}
+.link-btn {
+  margin-top: 12px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.link-btn:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+.field-group {
+  width: 100%;
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.field {
+  display: block;
+}
+.field-label {
+  display: block;
+  margin: 0 0 5px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+}
+.field-input {
+  width: 100%;
+  border: 1.5px solid oklch(0.9 0.005 95);
+  background: oklch(0.98 0.004 95);
+  border-radius: 12px;
+  padding: 12px 14px;
+  /* 16px keeps iOS from zooming the page on focus. */
+  font-size: 16px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--ink);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.field-input::placeholder {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+.field-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 16%, transparent);
+}
+/* Email is shown for reference but not editable here. */
+.field-input:disabled {
+  color: var(--ink-2);
+  -webkit-text-fill-color: var(--ink-2);
+  opacity: 1;
+  cursor: default;
+}
+.pw-section {
+  width: 100%;
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pw-heading {
+  margin: 0 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+}
+.btn-wide {
+  width: 100%;
+}
+/* The photo/name notice sits between the change-photo link and the fields. */
+.profile-body > .form-msg {
+  margin-top: 12px;
+}
+/* Reveal/hide toggle inside a password field. */
+.pw-field {
+  position: relative;
+}
+.pw-input {
+  padding-right: 44px;
+}
+.pw-eye {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  padding: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.pw-eye:hover {
+  color: var(--ink-2);
+}
+.form-msg {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 2px 4px;
+  color: oklch(0.55 0.16 25);
+}
+.form-msg-ok {
+  color: oklch(0.5 0.14 150);
+}
+.btn-signout {
+  width: 100%;
+  margin-top: 22px;
+  border: 1.5px solid oklch(0.85 0.06 25);
+  background: none;
+  color: oklch(0.5 0.16 25);
+  border-radius: 12px;
+  padding: 13px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-signout:active {
+  background: oklch(0.97 0.02 25);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -189,14 +189,52 @@ entirely grey, and a week always starts empty.
 
 ---
 
+## D8 — Top nav, not bottom; profile behind the avatar
+
+**The Week / Review switch is a segmented toggle inside the header, and the
+whole app has no fixed bottom bar.** This follows the mockup and reverses the
+earlier bottom-nav experiment (commits `962a2c7`, `91e80ea`).
+
+The header now carries everything persistent: the avatar, the user's name and
+the week range, this week's completion figure, and the view switch. It is
+sticky, so both the avatar and the toggle stay reachable as the list scrolls —
+which was the one thing a bottom bar bought us. A bottom bar also fought the
+add-task and rename sheets for the same edge of a phone screen; a top toggle
+does not.
+
+**Profile is an overlay, not a third tab.** Tapping the avatar opens it over
+whichever view you were on; closing returns you there. It is not part of the
+Week/Review toggle because it is a mode you enter and leave, not a peer view you
+switch between.
+
+Name and email are stored on the Supabase auth user (`user_metadata.full_name`
+plus `email`) and written with `updateUser` — no separate profile table, since
+these are exactly the fields auth already owns. The **photo goes to a public
+`avatars` Storage bucket** (migration `0002`), and only its public URL is kept on
+the user. Holding the image itself as a base64 data URL in `user_metadata` was
+tried first and does not work — it inflates the access-token JWT and GoTrue
+rejects anything past a small ceiling, so uploads appeared to succeed but never
+persisted. The password change re-authenticates with the current password first,
+because `updateUser({ password })` does not verify it on its own.
+
+Identity edits **auto-save**, no Save button: the photo uploads the moment it is
+picked, and the name is written on blur — so leaving the field, including by
+pressing Back, stores it. Email is shown read-only here; it is not changed from
+this screen. The password form keeps its own explicit button — it is a
+different, independent action with its own validation and re-auth step.
+
+---
+
 ## Still genuinely open
 
 Not blocking, but undecided:
 
-- **Review metrics.** The mockup shows completion percentage, done/planned/backlog
-  counts, and per-day bars. Whether "carried over" and "dropped to backlog"
-  deserve first-class numbers is unanswered. The data supports computing them
-  retroactively, so this can wait until the review view has been used a few times.
+- **Review metrics.** The mockup's base charts are built — completion ring,
+  done/planned/backlog counts, per-day bars, all derived from the live task rows.
+  What's still open is whether "carried over" and "dropped to backlog" deserve
+  first-class numbers, and whether the figures should span history rather than
+  just this week. The data supports computing both retroactively, so this can
+  wait until the review view has been used a few times.
 - **Dark mode.** No palette designed. See
   [`design-system.md`](design-system.md#9-known-gaps).
 - **Historical weeks.** The model retains everything; there is no navigation to it.
