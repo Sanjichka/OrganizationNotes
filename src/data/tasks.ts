@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import type { Bucket, Subtask, Task } from '../lib/types'
 import { appendPosition } from '../lib/position'
+import { todayISODate } from '../lib/buckets'
 
 // All queries rely on RLS to scope rows to the current user, so user_id is only
 // needed on insert.
@@ -9,6 +10,20 @@ export async function fetchTasks(): Promise<Task[]> {
   const { data, error } = await supabase.from('tasks').select('*')
   if (error) throw error
   return data as Task[]
+}
+
+// Weekly carry-over. On the first open of a new week the DB moves every open
+// day-bucket task into the backlog (see supabase/migrations/0004). Idempotent —
+// guarded by user_state.last_rollover_on — so calling it on every app open is
+// safe. Returns the number of tasks swept (0 when the week already rolled over).
+// "Today" is the client's LOCAL day so the week boundary follows the user's
+// calendar, not the server's UTC clock (decisions.md D2).
+export async function runWeeklyRollover(): Promise<number> {
+  const { data, error } = await supabase.rpc('rollover_week', {
+    p_today: todayISODate(),
+  })
+  if (error) throw error
+  return (data as number) ?? 0
 }
 
 export async function addTask(args: {

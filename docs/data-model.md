@@ -144,29 +144,34 @@ Use this sort everywhere. Do not re-sort ad hoc in components.
 
 ## 4. Carry-over
 
-Runs client-side on first open of a new day. See
-[`decisions.md`](decisions.md#d2--carry-over-trigger).
+**One weekly sweep**, not a daily cascade. Runs client-side on the first open of a
+new week; the DB does the work in the `rollover_week` RPC
+(`supabase/migrations/0004`). See [`decisions.md`](decisions.md#d2--carry-over-trigger).
 
 **The invariant: it must be idempotent.** Running it twice in a row must be
 indistinguishable from running it once. Two devices, a refresh mid-run, a clock
 that jumps — all of these will happen.
 
-Procedure:
+Procedure (all of it inside the RPC, one transaction):
 
-1. Read `user_state.last_rollover_on`. If it equals today, stop.
-2. For each bucket whose date is now in the past, take the tasks where
-   `done = false`, **in `position` order**.
-3. Move them to the following day — or to `backlog` if the day was Sunday —
-   preserving relative order, placed **above** the tasks already there
-   (assign positions below the destination's current minimum).
+1. Read `user_state.last_rollover_on`. If the week containing it is the current
+   week (or later), stop. On the first run ever, record today as the baseline and
+   sweep nothing — otherwise the current in-progress week would be dumped.
+2. Take every task in a **day bucket** (`mon`..`sun`) where `done = false`, in day
+   order then `position` order.
+3. Move the whole set to the **backlog** (`bucket = 'backlog'`, `date = null`),
+   preserving relative order, placed **above** the tasks already there (assign
+   positions below the backlog's current minimum).
 4. Leave completed tasks exactly where they are. They are the review's evidence.
 5. Set `last_rollover_on = today`.
 
-Steps 2–5 run in a single transaction — an RPC function is the natural fit, so a
-half-applied rollover is impossible.
+"Today" is passed in by the client (`p_today`) so the week boundary follows the
+user's **local** calendar, not the server's UTC clock. `rollover_week` is
+`SECURITY INVOKER`, so RLS still scopes every row to the caller.
 
-A task that goes several days untouched carries forward each night and keeps
-climbing. That is intended: it should become progressively harder to ignore.
+The board groups tasks by `bucket`, never by date, so last week's leftovers keep
+showing under their days until this sweep moves them out. That is the sweep's whole
+job: at week's end the days empty into the backlog and the new week starts clean.
 
 ---
 

@@ -34,21 +34,32 @@ Neither is in v1.
 
 ---
 
-## D2 — Carry-over trigger
+## D2 — Carry-over model and trigger
 
-**Client-side, on first open of a new day.** Not a scheduled Supabase function.
+**One weekly sweep to the backlog, triggered client-side on the first open of a
+new week.** Not a nightly cascade, and not a scheduled Supabase function.
 
-The app has exactly one user. A midnight cron exists to serve people who need
-their data correct while they sleep — nobody is looking. What matters is that the
-board is correct *the moment the app is opened*, and a client-side check
+*Model (revised by the project owner, 2026-07-21).* The v0.1 draft carried each
+day's leftovers to the *next day* and only emptied Sunday into the backlog. The
+owner chose a simpler shape: at week's end, **everything still open across all
+seven days lands in the backlog** in one move, and the new week starts with empty
+days. A day you skip stays quietly on its day until the week turns, rather than
+climbing through the rest of the week. This trades the daily escalation pressure
+(see [D3](#d3--carry-over-placement)) for a clean weekly reset and a single, easy
+mental model: *the backlog is everything you didn't get to.*
+
+*Trigger.* The app has exactly one user. A midnight cron would serve people who
+need their data correct while they sleep — nobody is looking. What matters is that
+the board is correct *the moment the app is opened*, and a client-side check
 guarantees that by construction.
 
-It also sidesteps timezones. "End of day" means the user's local day; a server
+It also sidesteps timezones. "End of week" means the user's local week; a server
 function would need the user's timezone stored, kept current, and correct across
-DST. The client already knows.
+DST. The client already knows, so it passes its local `today` into the RPC.
 
 The requirement this creates is [idempotency](data-model.md#4-carry-over) —
-guarded by `user_state.last_rollover_on`, applied in one transaction.
+guarded by `user_state.last_rollover_on`, applied in one transaction
+(`rollover_week`, `supabase/migrations/0004`).
 
 Revisit if the app becomes multi-user or multi-device-with-widgets.
 
@@ -56,25 +67,21 @@ Revisit if the app becomes multi-user or multi-device-with-widgets.
 
 ## D3 — Carry-over placement
 
-**Carried tasks land at the TOP of the new day.**
+**Carried tasks land at the TOP of the backlog**, above whatever is already there,
+with their relative order preserved (day order, then position within the day).
 
-This reverses the v0.1 draft's leaning, so here is the argument.
+Now that carry-over is a [weekly sweep](#d2--carry-over-model-and-trigger) rather
+than a daily cascade, this is the whole of the placement question — there is no
+"next day" to place into. Top-of-backlog keeps the freshest leftovers in view when
+you sit down to plan the new week, so re-scheduling them onto a day is a short
+drag, not a scroll to the bottom of a growing pile.
 
-Bottom placement has a compounding failure. A task carried to the bottom sits
-below everything newly planned. Tomorrow it carries again — to the bottom again,
-now below yet another day's plans. Since shading is derived from position, it also
-fades a little lighter each night. **The longer you avoid something, the quieter
-the app gets about it.** That is precisely backwards.
-
-Top placement inverts that. An avoided task climbs and darkens until it is the
-first thing visible. The app applies pressure exactly where pressure is due.
-
-Relative order among the carried group is preserved, so yesterday's ranking
-survives intact — it simply sits above today's new work.
-
-The counter-argument is fair: a genuinely dead task now dominates the day until
-it is dealt with. But the remedy is one drag to the backlog, and being forced to
-make that choice is the feature.
+*Superseded reasoning.* The v0.1 daily model placed carries at the top of the
+*next day* so an avoided task climbed and darkened each night — "the app applies
+pressure exactly where pressure is due." The weekly model gives that pressure up
+on purpose: nothing escalates mid-week, and everything unfinished simply pools in
+the backlog at week's end. If daily escalation is ever missed, this is the
+decision to reopen.
 
 ---
 

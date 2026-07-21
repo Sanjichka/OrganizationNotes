@@ -101,18 +101,19 @@ Drag must be touch-native: long-press to lift, auto-scroll at screen edges.
 - Completed tasks are visually muted rather than participating in the priority
   shade scale.
 
-### Carry-over (overnight)
+### Carry-over (weekly)
 
-- Any task still open at the end of its day moves to the **next day**, keeping
-  its relative order, placed **above** whatever is already scheduled there.
-  A carried task is a day overdue, so it outranks work newly planned for today.
-  *(This reverses the v0.1 draft's leaning — reasoning in
-  [`decisions.md`](decisions.md#d3--carry-over-placement).)*
-- Tasks still open at the end of **Sunday** go to the **backlog**, not to Monday.
+- At the end of the week, **every** task still open across **all seven days**
+  moves to the **backlog** for the next week — one sweep, not a nightly cascade.
+  Days therefore start each Monday empty; the backlog holds whatever went
+  unfinished. *(This replaces the v0.1 draft's daily model — reasoning in
+  [`decisions.md`](decisions.md#d2--carry-over-trigger).)*
+- Carried tasks keep their relative order and land **above** the existing backlog,
+  so the freshest leftovers are the first thing you see when re-planning.
 - Completed tasks never move. They stay on the day they were completed, which is
   what makes the weekly review meaningful.
-- Carry-over runs client-side on first open of a new day, and is **idempotent** —
-  running it twice must not move anything twice. See
+- Carry-over runs client-side on the first open of a new **week**, and is
+  **idempotent** — running it twice must not move anything twice. See
   [`decisions.md`](decisions.md#d2--carry-over-trigger).
 
 ### Backlog

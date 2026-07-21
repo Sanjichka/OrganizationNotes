@@ -62,6 +62,11 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+/** Today's local date as YYYY-MM-DD. */
+export function todayISODate(ref = new Date()): string {
+  return toISODate(ref)
+}
+
 /** The date (YYYY-MM-DD) of each weekday in the week containing `ref`. */
 export function weekDates(ref = new Date()): Record<Bucket, string | null> {
   const monday = new Date(ref)

@@ -16,6 +16,7 @@ import { between, canonicalSort } from '../lib/position'
 import { openShade } from '../lib/shading'
 import {
   fetchTasks,
+  runWeeklyRollover,
   addTask,
   setDone,
   moveTask,
@@ -73,7 +74,12 @@ export function Board({
   useEffect(() => {
     // Collapse everything except today on first load.
     setCollapsed(new Set(ALL_BUCKETS.filter((b) => b !== today)))
-    Promise.all([fetchTasks(), fetchSubtasks()])
+    // Weekly carry-over runs first so the fetch below reflects any sweep. It is
+    // idempotent, and a failure (e.g. offline — writes don't run offline) must
+    // not block the board, so we swallow it and load whatever we can read.
+    runWeeklyRollover()
+      .catch(() => 0)
+      .then(() => Promise.all([fetchTasks(), fetchSubtasks()]))
       .then(([t, s]) => {
         setTasks(t)
         setSubtasks(s)
