@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import type { Bucket, Task } from '../lib/types'
+import type { Bucket, Subtask, Task } from '../lib/types'
 import { BUCKET_LABEL } from '../lib/buckets'
 import { openShade, doneShade, sectionShade } from '../lib/shading'
 import { TaskCard } from './TaskCard'
@@ -8,6 +8,7 @@ import { TaskCard } from './TaskCard'
 interface Props {
   bucket: Bucket
   tasks: Task[] // already canonically sorted
+  subtasksByTask: Record<string, Subtask[]> // sorted by position
   isToday: boolean
   collapsed: boolean
   onToggleCollapse: (bucket: Bucket) => void
@@ -15,11 +16,16 @@ interface Props {
   onDeleteTask: (task: Task) => void
   onEditTask: (task: Task) => void
   onAdd: (bucket: Bucket) => void
+  onAddSubtask: (task: Task, title: string) => void
+  onToggleSubtask: (subtask: Subtask) => void
+  onRenameSubtask: (subtask: Subtask, title: string) => void
+  onDeleteSubtask: (subtask: Subtask) => void
 }
 
 export function DaySection({
   bucket,
   tasks,
+  subtasksByTask,
   isToday,
   collapsed,
   onToggleCollapse,
@@ -27,6 +33,10 @@ export function DaySection({
   onDeleteTask,
   onEditTask,
   onAdd,
+  onAddSubtask,
+  onToggleSubtask,
+  onRenameSubtask,
+  onDeleteSubtask,
 }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: `bucket:${bucket}` })
   const open = tasks.filter((t) => !t.done)
@@ -97,9 +107,14 @@ export function DaySection({
                 key={t.id}
                 task={t}
                 shade={openShade(bucket, i, n)}
+                subtasks={subtasksByTask[t.id] ?? []}
                 onToggle={onToggleTask}
                 onDelete={onDeleteTask}
                 onEdit={onEditTask}
+                onAddSubtask={onAddSubtask}
+                onToggleSubtask={onToggleSubtask}
+                onRenameSubtask={onRenameSubtask}
+                onDeleteSubtask={onDeleteSubtask}
               />
             ))}
           </SortableContext>
@@ -108,9 +123,14 @@ export function DaySection({
               key={t.id}
               task={t}
               shade={doneShade(bucket)}
+              subtasks={subtasksByTask[t.id] ?? []}
               onToggle={onToggleTask}
               onDelete={onDeleteTask}
               onEdit={onEditTask}
+              onAddSubtask={onAddSubtask}
+              onToggleSubtask={onToggleSubtask}
+              onRenameSubtask={onRenameSubtask}
+              onDeleteSubtask={onDeleteSubtask}
             />
           ))}
           {tasks.length === 0 && <p className="empty">Nothing here.</p>}

@@ -538,6 +538,117 @@ body {
   padding: 0 2px;
 }
 
+/* Subtasks ------------------------------------------------------------------*/
+/* The card row lives inside a wrapper so the checklist can unfold beneath it
+   without being part of the draggable row. */
+.task-wrap {
+  min-width: 0;
+}
+
+/* Disclosure control on the card row: progress count + rotating caret. */
+.subtask-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  /* Generous hit area so a tap lands here, not on the card (which renames).
+     Negative vertical margin keeps the row height unchanged. */
+  padding: 8px 6px;
+  margin: -8px -2px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.subtask-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  padding: 2px 5px;
+  border-radius: 6px;
+}
+.subtask-caret {
+  font-size: 20px;
+  line-height: 1;
+  transition: rotate 0.15s ease;
+}
+
+/* The unfolded checklist. Indented under the title and set on a faint panel so
+   it reads as owned by the card above it. */
+.subtasks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 3px 0 2px 8px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: oklch(1 0 95 / 0.5);
+}
+.subtask {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 2px;
+}
+.subtask-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid;
+  border-radius: 5px; /* rounded square — distinct from the parent's round box */
+  font-size: 10px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.85;
+}
+.subtask-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+.subtask-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-bottom: 1px solid oklch(0.7 0.01 95);
+  padding: 1px 0;
+  outline: none;
+}
+.subtask-delete {
+  flex: none;
+  background: none;
+  border: none;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-3);
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.subtask-add {
+  opacity: 0.8;
+}
+.subtask-plus {
+  flex: none;
+  width: 16px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
 /* Confirm sheet -------------------------------------------------------------*/
 .scrim {
   position: fixed;

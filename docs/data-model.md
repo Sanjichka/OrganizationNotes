@@ -182,3 +182,50 @@ the ordering. An honest "you're offline" is the better product.
 
 Carry-over does **not** run offline. It needs a durable `last_rollover_on` to
 stay idempotent.
+
+---
+
+## 6. Subtasks
+
+A lightweight checklist under a task. See [`decisions.md D9`](decisions.md#d9--subtasks-are-a-checklist-not-nested-tasks)
+for why this is a child table rather than a `parent_id` on `tasks`.
+
+```sql
+create table subtasks (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  task_id       uuid not null references tasks(id) on delete cascade,
+
+  title         text not null
+                  check (length(btrim(title)) between 1 and 200),
+  position      double precision not null,
+  done          boolean not null default false,
+
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index subtasks_task_idx on subtasks (task_id, position);
+```
+
+The design lives in the shape of the table:
+
+- **No `bucket`, `date`, or `duration_min`.** A subtask has no day of its own; it
+  follows its parent. `on delete cascade` means deleting the parent removes it,
+  with no client cleanup.
+- **No `completed_at`.** Unlike a task, a subtask never feeds the weekly review, so
+  `done` alone suffices. (A task keeps `completed_at` precisely because the review
+  depends on it.)
+- **`position` is fractional**, exactly as for tasks (§3) — scoped per parent —
+  and reuses the same helpers. Subtasks are shown in plain `position asc` order;
+  they have no done/`completed_at` split, so the task canonical sort does not
+  apply to them.
+
+RLS mirrors `tasks`: a single `"own subtasks"` policy `for all`
+using/with-check `auth.uid() = user_id`, plus the shared `touch_updated_at`
+trigger. Subtasks are never shaded and never carried over independently, so none
+of the task invariants extend to them.
+
+**Auto-complete** (a client rule, not a constraint): checking the last open box
+completes the parent, and unchecking a box — or adding one — on a completed
+parent reopens it, all via the same completion path a manual toggle uses.

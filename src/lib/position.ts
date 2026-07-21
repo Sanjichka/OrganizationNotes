@@ -21,9 +21,12 @@ export function between(
   return (above + below) / 2
 }
 
-/** Append below the current maximum open position in a list. */
-export function appendPosition(tasks: Task[]): number {
-  const max = tasks.reduce((m, t) => Math.max(m, t.position), Number.NEGATIVE_INFINITY)
+/**
+ * Append below the current maximum position in a list. Structural on `position`
+ * so it serves both tasks (open siblings) and subtasks.
+ */
+export function appendPosition(items: Array<{ position: number }>): number {
+  const max = items.reduce((m, t) => Math.max(m, t.position), Number.NEGATIVE_INFINITY)
   return max === Number.NEGATIVE_INFINITY ? 0 : max + 1
 }
 

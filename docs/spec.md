@@ -16,10 +16,13 @@ review.
 complete/uncomplete, drag to reorder within a day, drag between days and to/from
 backlog, automatic carry-over of undone tasks, priority-shaded task cards, today
 highlighted, weekly review view, Supabase persistence, read-only offline,
-optional per-task duration.
+optional per-task duration, per-task subtask checklists.
 
-**Out (v1):** notes, subtasks, recurring tasks, reminders/notifications, calendar
+**Out (v1):** notes, recurring tasks, reminders/notifications, calendar
 integration, sharing, desktop layout, tag UI.
+
+*Subtasks moved in-scope after v0.2 — see
+[`decisions.md D9`](decisions.md#d9--subtasks-are-a-checklist-not-nested-tasks).*
 
 **Deferred but designed for:** category/tag per task, historical week summaries,
 calendar sync. Columns exist in the schema; no UI ships in v1.
@@ -49,7 +52,15 @@ review view. The current day is visually highlighted.
 | `tag` | nullable — column exists, no v1 UI |
 | `created_at` / `updated_at` | |
 
-No notes field. No subtasks.
+No notes field.
+
+### Subtask
+
+A task may hold a checklist of subtasks — each just a `title` and a `done` flag,
+ordered by `position`. Subtasks have no day, duration, shading or independent
+carry-over; they follow their parent. Checking the last one completes the parent
+(and unchecking reopens it). Full reasoning in
+[`decisions.md D9`](decisions.md#d9--subtasks-are-a-checklist-not-nested-tasks).
 
 Full schema in [`data-model.md`](data-model.md).
 

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Bucket, Task } from '../lib/types'
+import type { Bucket, Subtask, Task } from '../lib/types'
 import { appendPosition } from '../lib/position'
 
 // All queries rely on RLS to scope rows to the current user, so user_id is only
@@ -82,5 +82,64 @@ export async function moveTask(
 
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from('tasks').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Subtasks --------------------------------------------------------------------
+// Lightweight checklist items scoped to a parent by task_id. RLS scopes rows to
+// the user, so user_id is only needed on insert. Deleting a task cascades to its
+// subtasks in the database (0003), so no client-side cleanup is required.
+
+export async function fetchSubtasks(): Promise<Subtask[]> {
+  const { data, error } = await supabase.from('subtasks').select('*')
+  if (error) throw error
+  return data as Subtask[]
+}
+
+export async function addSubtask(args: {
+  userId: string
+  taskId: string
+  title: string
+  siblings: Subtask[]
+}): Promise<Subtask> {
+  const { userId, taskId, title, siblings } = args
+  const { data, error } = await supabase
+    .from('subtasks')
+    .insert({
+      user_id: userId,
+      task_id: taskId,
+      title: title.trim(),
+      position: appendPosition(siblings),
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as Subtask
+}
+
+export async function setSubtaskDone(id: string, done: boolean): Promise<Subtask> {
+  const { data, error } = await supabase
+    .from('subtasks')
+    .update({ done })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as Subtask
+}
+
+export async function renameSubtask(id: string, title: string): Promise<Subtask> {
+  const { data, error } = await supabase
+    .from('subtasks')
+    .update({ title: title.trim() })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as Subtask
+}
+
+export async function deleteSubtask(id: string): Promise<void> {
+  const { error } = await supabase.from('subtasks').delete().eq('id', id)
   if (error) throw error
 }

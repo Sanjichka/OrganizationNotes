@@ -225,6 +225,53 @@ different, independent action with its own validation and re-auth step.
 
 ---
 
+## D9 — Subtasks are a checklist, not nested tasks
+
+*Accepted.* Moves subtasks in-scope, reversing the v1 "Out" line in
+[`spec.md`](spec.md). Confirmed with the project owner along with the two
+interaction choices below.
+
+A subtask is a **lightweight checklist item** under a task — `title`, `done`,
+`position`, nothing else. It lives in its own [`subtasks`](data-model.md#6-subtasks)
+table, keyed to its parent by `task_id` with `on delete cascade`.
+
+**Why not nested tasks (a `parent_id` on `tasks`).** The whole model rests on
+*bucket = day* and *position = priority within a bucket*, and shading is derived
+from a task's rank among the open tasks in its bucket. A subtask that was a full
+task would need its own bucket and date — and then either it participates in the
+day's shading ramp (nonsense: it isn't a peer of the day's tasks) or it doesn't
+(a special case threaded through every render). Carry-over would have to decide
+whether a child moves with its parent or on its own. Each of those is a fresh
+exception to an invariant. A child table keyed by `task_id` has **none** of them:
+a subtask has no bucket, no date, no shading, and no independent carry-over. It
+follows its parent because it points at the parent, not at a day. Every invariant
+in [`CLAUDE.md`](../CLAUDE.md) is untouched.
+
+**No `completed_at` on subtasks.** Tasks carry one because the weekly review is
+built on it. Subtasks never feed the review — a plain `done` boolean is the whole
+requirement. If review-of-subtasks is ever wanted, that is a migration, not a
+correction.
+
+**Inline expand, not a detail sheet.** A progress chip (`2/5`) and a caret on the
+card unfold the checklist in place. This matches D4's "the week is visible as a
+whole" ethos — the sheet would hide subtask state behind a tap and repurpose the
+existing tap-to-rename gesture. The checklist renders inside the sortable wrapper
+but *outside* the draggable card row, so parent drag is unaffected and taps in
+the list never lift a card.
+
+**Auto-complete is symmetric.** Checking the last open box completes the parent;
+unchecking a box on a completed parent reopens it; adding a box to a completed
+parent reopens it. All three go through the same `setDone` path a manual toggle
+uses, so the parent drops to / rises from the done section identically. Deleting
+a subtask deliberately does *not* auto-complete — "delete finished my task" is a
+worse surprise than a box left unchecked. A task with zero subtasks has no auto
+behaviour at all.
+
+**Deferred, designed-for:** subtask drag-reordering. `position` is fractional and
+the reorder helpers are shared, so it is a UI addition, not a migration.
+
+---
+
 ## Still genuinely open
 
 Not blocking, but undecided:

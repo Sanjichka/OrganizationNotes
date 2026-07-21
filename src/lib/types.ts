@@ -22,3 +22,16 @@ export interface Task {
   created_at: string
   updated_at: string
 }
+
+// A lightweight checklist item under a task. No bucket/date/shading of its own —
+// it follows its parent by task_id. See docs/decisions.md D9.
+export interface Subtask {
+  id: string
+  user_id: string
+  task_id: string
+  title: string
+  position: number
+  done: boolean
+  created_at: string
+  updated_at: string
+}
