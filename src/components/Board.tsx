@@ -21,7 +21,7 @@ import {
   setDone,
   moveTask,
   deleteTask,
-  renameTask,
+  updateTask,
   fetchSubtasks,
   addSubtask,
   setSubtaskDone,
@@ -31,7 +31,8 @@ import {
 import { DaySection } from './DaySection'
 import { TaskCard } from './TaskCard'
 import { ConfirmDialog } from './ConfirmDialog'
-import { TaskSheet } from './TaskSheet'
+import { TaskSheet, type TaskDraft } from './TaskSheet'
+import { formatTime } from '../lib/duration'
 import { AppHeader } from './AppHeader'
 import { type Page } from './Tabs'
 
@@ -115,7 +116,7 @@ export function Board({
     setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
   }
 
-  async function handleAdd(bucket: Bucket, title: string) {
+  async function handleAdd(bucket: Bucket, draft: TaskDraft) {
     setAddingTo(null)
     // A task added to a collapsed section would land out of sight.
     setCollapsed((prev) => {
@@ -127,10 +128,12 @@ export function Board({
     try {
       const task = await addTask({
         userId,
-        title,
+        title: draft.title,
         bucket,
         date: dates[bucket],
         siblings: byBucket[bucket],
+        durationMin: draft.durationMin,
+        startTime: draft.startTime,
       })
       setTasks((prev) => [...prev, task])
     } catch (e) {
@@ -147,12 +150,23 @@ export function Board({
     }
   }
 
-  async function handleRename(task: Task, title: string) {
+  async function handleEdit(task: Task, draft: TaskDraft) {
     setEditing(null)
     const prev = task
-    upsertLocal({ ...task, title })
+    upsertLocal({
+      ...task,
+      title: draft.title,
+      duration_min: draft.durationMin,
+      start_time: draft.startTime,
+    })
     try {
-      upsertLocal(await renameTask(task.id, title))
+      upsertLocal(
+        await updateTask(task.id, {
+          title: draft.title,
+          durationMin: draft.durationMin,
+          startTime: draft.startTime,
+        }),
+      )
     } catch (e) {
       upsertLocal(prev)
       setError((e as Error).message)
@@ -390,7 +404,7 @@ export function Board({
       {addingTo && (
         <TaskSheet
           bucket={addingTo}
-          onSubmit={(title) => handleAdd(addingTo, title)}
+          onSubmit={(draft) => handleAdd(addingTo, draft)}
           onCancel={() => setAddingTo(null)}
         />
       )}
@@ -399,7 +413,9 @@ export function Board({
         <TaskSheet
           bucket={editing.bucket}
           initialTitle={editing.title}
-          onSubmit={(title) => handleRename(editing, title)}
+          initialDuration={editing.duration_min}
+          initialStart={editing.start_time ? formatTime(editing.start_time) : null}
+          onSubmit={(draft) => handleEdit(editing, draft)}
           onCancel={() => setEditing(null)}
         />
       )}

@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Subtask, Task } from '../lib/types'
 import type { Shade } from '../lib/shading'
+import { formatDuration, formatTime } from '../lib/duration'
 import { SubtaskList } from './SubtaskList'
 
 interface Props {
@@ -107,9 +108,15 @@ export function TaskCard({
           {task.title}
         </span>
 
+        {task.start_time && (
+          <span className="chip" style={{ background: chipBg }}>
+            {formatTime(task.start_time)}
+          </span>
+        )}
+
         {task.duration_min != null && (
           <span className="chip" style={{ background: chipBg }}>
-            {task.duration_min}m
+            {formatDuration(task.duration_min)}
           </span>
         )}
 

@@ -18,6 +18,9 @@ export interface Task {
   done: boolean
   completed_at: string | null
   duration_min: number | null
+  // Optional clock time of day ("when"), as HH:MM[:SS]. Display metadata only —
+  // see docs/decisions.md D10.
+  start_time: string | null
   tag: string | null
   created_at: string
   updated_at: string

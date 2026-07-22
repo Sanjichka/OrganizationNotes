@@ -734,6 +734,69 @@ body {
   opacity: 0.4;
 }
 
+/* Optional fields on the task sheet: duration + when. Both inherit the sheet's
+   bucket tint via inline colours from the component. */
+.sheet-field {
+  margin-top: 16px;
+}
+.sheet-field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  margin-bottom: 8px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* Selectable pill — outline when idle, filled with the accent when active
+   (colours set inline so they follow the bucket). */
+.pick-chip {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1.5px solid;
+  background: none;
+  cursor: pointer;
+  line-height: 1;
+}
+.pick-chip:active {
+  transform: scale(0.96);
+}
+.custom-min {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.custom-min-input {
+  width: 68px;
+  padding: 6px 10px;
+  border-width: 1.5px;
+  font-size: 16px; /* below 16px iOS zooms the page on focus */
+  font-weight: 500;
+  background: var(--surface);
+}
+.time-input {
+  width: 100%;
+  border-width: 1.5px;
+  font-size: 16px; /* below 16px iOS zooms the page on focus */
+  font-weight: 500;
+  background: var(--surface);
+}
+.custom-min-input:focus,
+.time-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklch, currentColor 16%, transparent);
+}
+
 .btn-quiet {
   background: none;
   color: var(--ink-2);

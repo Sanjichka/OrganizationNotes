@@ -25,6 +25,7 @@ create table tasks (
   completed_at  timestamptz,
 
   duration_min  integer check (duration_min > 0),
+  start_time    time,                       -- "when": optional clock time of day
   tag           text,
 
   created_at    timestamptz not null default now(),
@@ -51,6 +52,11 @@ The two check constraints are the important part. They make the impossible
 states — a backlog task carrying a date, a task marked done with no completion
 timestamp — unrepresentable rather than merely discouraged. The weekly review
 depends entirely on `completed_at` being trustworthy.
+
+`start_time` is added by `supabase/migrations/0005`, not the initial schema. It
+is pure display metadata — a `time`, never a `timestamptz`, because a task's day
+is its bucket and a backlog task has none — and it constrains nothing: not the
+canonical sort, not shading, not carry-over. See [`decisions.md D10`](decisions.md#d10--when-a-clock-time-not-a-date).
 
 ### `updated_at`
 

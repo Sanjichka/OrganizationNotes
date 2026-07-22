@@ -2,24 +2,54 @@ import { useEffect, useRef, useState } from 'react'
 import type { Bucket } from '../lib/types'
 import { BUCKET_LABEL } from '../lib/buckets'
 import { sectionShade } from '../lib/shading'
+import { DURATION_PRESETS, formatDuration } from '../lib/duration'
+
+// What the sheet emits on submit. Duration and start time are both optional and
+// independent (docs/decisions.md D6, D10); null means "not set / cleared".
+export interface TaskDraft {
+  title: string
+  durationMin: number | null
+  startTime: string | null
+}
 
 interface Props {
   bucket: Bucket
-  /** Present when renaming an existing task; absent when creating one. */
+  /** Present when editing an existing task; absent when creating one. */
   initialTitle?: string
-  onSubmit: (title: string) => void
+  initialDuration?: number | null
+  /** HH:MM (already trimmed of any seconds) when editing. */
+  initialStart?: string | null
+  onSubmit: (draft: TaskDraft) => void
   onCancel: () => void
 }
 
 /**
- * Phone-first sheet for naming a task — new or existing. Wears the colour of the
- * bucket the task lives in, so the destination is legible before the task
+ * Phone-first sheet for composing a task — new or existing. Wears the colour of
+ * the bucket the task lives in, so the destination is legible before the task
  * exists — same sectionShade the day header uses, no second source of truth for
- * the palette.
+ * the palette. Besides the title it collects two optional fields: a duration
+ * (preset chips + custom minutes) and a "when" clock time.
  */
-export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
+export function TaskSheet({
+  bucket,
+  initialTitle,
+  initialDuration,
+  initialStart,
+  onSubmit,
+  onCancel,
+}: Props) {
   const editing = initialTitle !== undefined
   const [title, setTitle] = useState(initialTitle ?? '')
+  const [durationMin, setDurationMin] = useState<number | null>(
+    initialDuration ?? null,
+  )
+  // Custom minutes field is open when editing a task whose duration is a
+  // non-preset value, so its number is visible and editable on open.
+  const [customOpen, setCustomOpen] = useState(
+    initialDuration != null &&
+      !DURATION_PRESETS.includes(initialDuration as (typeof DURATION_PRESETS)[number]),
+  )
+  const [startTime, setStartTime] = useState(initialStart ?? '')
   // Height the on-screen keyboard steals from the bottom. iOS doesn't shrink the
   // layout viewport when the keyboard opens, so a bottom-anchored sheet slides
   // in behind it — we read the visual viewport and lift the sheet by that much.
@@ -35,7 +65,7 @@ export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
   useEffect(() => {
     const input = inputRef.current
     input?.focus()
-    // Renaming opens on the existing name, so pre-select it: one keystroke
+    // Editing opens on the existing name, so pre-select it: one keystroke
     // replaces the lot, a tap still puts the caret where it landed.
     input?.select()
     function onKey(e: KeyboardEvent) {
@@ -67,12 +97,44 @@ export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
   }, [])
 
   const trimmed = title.trim()
-  const unchanged = editing && trimmed === initialTitle
+  const normalizedStart = startTime || null
+  const unchanged =
+    editing &&
+    trimmed === initialTitle &&
+    durationMin === (initialDuration ?? null) &&
+    normalizedStart === (initialStart ?? null)
+
+  // Tapping a preset toggles it; the custom field yields to it.
+  function pickPreset(min: number) {
+    setCustomOpen(false)
+    setDurationMin((cur) => (cur === min ? null : min))
+  }
+
+  // The custom chip reveals a minutes field and clears any preset selection so
+  // the two never claim to be selected at once.
+  function toggleCustom() {
+    setCustomOpen((open) => {
+      if (open) {
+        setDurationMin(null)
+        return false
+      }
+      setDurationMin(null)
+      return true
+    })
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!trimmed || unchanged) return
-    onSubmit(trimmed)
+    onSubmit({ title: trimmed, durationMin, startTime: normalizedStart })
+  }
+
+  // Filled chips carry the bucket accent; unselected ones are a quiet outline in
+  // the same colour, matching the sheet's tint rather than introducing greys.
+  function chipStyle(active: boolean): React.CSSProperties {
+    return active
+      ? { background: shade.accent, color: shade.background, borderColor: shade.accent }
+      : { color: shade.label, borderColor: shade.accent }
   }
 
   return (
@@ -87,7 +149,7 @@ export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
         aria-modal="true"
         aria-label={
           editing
-            ? 'Rename task'
+            ? 'Edit task'
             : `New Task ${preposition} ${BUCKET_LABEL[bucket]}`
         }
         style={{ background: shade.background }}
@@ -97,7 +159,7 @@ export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
         <div className="sheet-grip" style={{ background: shade.accent }} />
         <h2 className="sheet-title" style={{ color: shade.label }}>
           {editing ? (
-            'Rename task'
+            'Edit task'
           ) : (
             <>
               New Task {preposition}{' '}
@@ -115,6 +177,72 @@ export function TaskSheet({ bucket, initialTitle, onSubmit, onCancel }: Props) {
           enterKeyHint="done"
           maxLength={200}
         />
+
+        {/* Duration — optional. Preset chips plus a custom minutes field. */}
+        <div className="sheet-field">
+          <span className="sheet-field-label" style={{ color: shade.label }}>
+            Duration
+          </span>
+          <div className="chip-row">
+            {DURATION_PRESETS.map((min) => (
+              <button
+                key={min}
+                type="button"
+                className="pick-chip"
+                style={chipStyle(!customOpen && durationMin === min)}
+                aria-pressed={!customOpen && durationMin === min}
+                onClick={() => pickPreset(min)}
+              >
+                {formatDuration(min)}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="pick-chip"
+              style={chipStyle(customOpen)}
+              aria-pressed={customOpen}
+              onClick={toggleCustom}
+            >
+              Custom
+            </button>
+            {customOpen && (
+              <span className="custom-min" style={{ color: shade.label }}>
+                <input
+                  className="input custom-min-input"
+                  style={{ borderColor: shade.accent, color: shade.label }}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={1440}
+                  value={durationMin ?? ''}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10)
+                    setDurationMin(Number.isFinite(n) && n > 0 ? n : null)
+                  }}
+                  placeholder="min"
+                  aria-label="Custom duration in minutes"
+                />
+                min
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* When — optional clock time of day. */}
+        <div className="sheet-field">
+          <span className="sheet-field-label" style={{ color: shade.label }}>
+            When
+          </span>
+          <input
+            className="input time-input"
+            style={{ borderColor: shade.accent, color: shade.label }}
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            aria-label="Start time"
+          />
+        </div>
+
         <div className="sheet-actions">
           <button
             type="submit"

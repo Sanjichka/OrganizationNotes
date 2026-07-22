@@ -137,6 +137,13 @@ of each card, with a `showTimes` toggle. It is a free-text field, not a picker:
 the user types `45m` or `1h30m` and it is stored as minutes. Cheap, and it makes
 a day's load legible at a glance.
 
+**Amendment (input UX):** the *entry* is now preset chips — 15m / 30m / 1h / 2h,
+plus a custom minutes field — rather than free-text parsing. On a phone tapping a
+preset beats typing `1h30m`, and the custom field keeps the long tail reachable.
+The storage is unchanged (minutes in `duration_min`) and the read-side chip is
+unchanged; only how the number is captured differs. The free-text parser was
+never built, so nothing regressed.
+
 Tags are not free. A tag system needs a vocabulary, a colour or shape to render
 it, and filtering to be worth having — and colour is already fully spent
 encoding day and priority. There is nowhere left to put a tag that would not
@@ -276,6 +283,27 @@ behaviour at all.
 
 **Deferred, designed-for:** subtask drag-reordering. `position` is fractional and
 the reorder helpers are shared, so it is a UI addition, not a migration.
+
+---
+
+## D10 — "When": a clock time, not a date
+
+**An optional time of day, stored as `time`, shown as a second card chip.** It
+sits beside the duration chip: "when I plan to start" next to "how long it takes".
+
+It is deliberately *not* a `timestamptz` and carries no date. A task already has a
+day — its bucket — and a backlog task has no day at all; a full instant would
+duplicate the first and be meaningless for the second. So the column is `time`
+("14:30"), captured with a native `<input type="time">` and stored as `HH:MM`.
+
+It is display metadata, nothing more. It does **not** enter the canonical sort
+(tasks stay ordered by hand-set `position`, not by clock — an 8am task can sit
+below a 9am one if that is where you dragged it), it does not shade anything, and
+carry-over ignores it. Adding it was a column plus a chip, touching no invariant —
+by design, the same shape as `duration_min`.
+
+Both fields are optional and independent: a task may have a time, a duration,
+both, or neither.
 
 ---
 

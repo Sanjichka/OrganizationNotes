@@ -33,8 +33,9 @@ export async function addTask(args: {
   date: string | null
   siblings: Task[]
   durationMin?: number | null
+  startTime?: string | null
 }): Promise<Task> {
-  const { userId, title, bucket, date, siblings, durationMin } = args
+  const { userId, title, bucket, date, siblings, durationMin, startTime } = args
   const { data, error } = await supabase
     .from('tasks')
     .insert({
@@ -44,6 +45,7 @@ export async function addTask(args: {
       date,
       position: appendPosition(siblings),
       duration_min: durationMin ?? null,
+      start_time: startTime || null,
     })
     .select('*')
     .single()
@@ -68,10 +70,20 @@ export async function setDone(task: Task, done: boolean, siblings: Task[]): Prom
   return data as Task
 }
 
-export async function renameTask(taskId: string, title: string): Promise<Task> {
+// Edit a task's user-facing fields in one write. Every field is optional: only
+// the keys present in `patch` are sent, so `updateTask(id, { title })` is still a
+// pure rename. duration_min / start_time accept null to clear the field.
+export async function updateTask(
+  taskId: string,
+  patch: { title?: string; durationMin?: number | null; startTime?: string | null },
+): Promise<Task> {
+  const row: Record<string, unknown> = {}
+  if (patch.title !== undefined) row.title = patch.title.trim()
+  if (patch.durationMin !== undefined) row.duration_min = patch.durationMin
+  if (patch.startTime !== undefined) row.start_time = patch.startTime || null
   const { data, error } = await supabase
     .from('tasks')
-    .update({ title: title.trim() })
+    .update(row)
     .eq('id', taskId)
     .select('*')
     .single()
