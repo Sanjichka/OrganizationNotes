@@ -128,8 +128,10 @@ export async function addSubtask(args: {
   taskId: string
   title: string
   siblings: Subtask[]
+  durationMin?: number | null
+  startTime?: string | null
 }): Promise<Subtask> {
-  const { userId, taskId, title, siblings } = args
+  const { userId, taskId, title, siblings, durationMin, startTime } = args
   const { data, error } = await supabase
     .from('subtasks')
     .insert({
@@ -137,6 +139,8 @@ export async function addSubtask(args: {
       task_id: taskId,
       title: title.trim(),
       position: appendPosition(siblings),
+      duration_min: durationMin ?? null,
+      start_time: startTime || null,
     })
     .select('*')
     .single()
@@ -144,10 +148,15 @@ export async function addSubtask(args: {
   return data as Subtask
 }
 
+// Done also stamps completed_at, mirroring setDone. A subtask never feeds the
+// weekly review, but the timestamp survives if it is later promoted to a task.
 export async function setSubtaskDone(id: string, done: boolean): Promise<Subtask> {
+  const patch = done
+    ? { done: true, completed_at: new Date().toISOString() }
+    : { done: false, completed_at: null }
   const { data, error } = await supabase
     .from('subtasks')
-    .update({ done })
+    .update(patch)
     .eq('id', id)
     .select('*')
     .single()
@@ -155,10 +164,36 @@ export async function setSubtaskDone(id: string, done: boolean): Promise<Subtask
   return data as Subtask
 }
 
-export async function renameSubtask(id: string, title: string): Promise<Subtask> {
+// Edit a subtask's user-facing fields in one write. Present-keys-only, exactly
+// like updateTask; duration_min / start_time accept null to clear the field.
+export async function updateSubtask(
+  id: string,
+  patch: { title?: string; durationMin?: number | null; startTime?: string | null },
+): Promise<Subtask> {
+  const row: Record<string, unknown> = {}
+  if (patch.title !== undefined) row.title = patch.title.trim()
+  if (patch.durationMin !== undefined) row.duration_min = patch.durationMin
+  if (patch.startTime !== undefined) row.start_time = patch.startTime || null
   const { data, error } = await supabase
     .from('subtasks')
-    .update({ title: title.trim() })
+    .update(row)
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as Subtask
+}
+
+// Reorder within a parent, or re-parent into another task's checklist — both are
+// one row: task_id + a fresh fractional position. Never renumbers siblings.
+export async function moveSubtask(
+  id: string,
+  taskId: string,
+  position: number,
+): Promise<Subtask> {
+  const { data, error } = await supabase
+    .from('subtasks')
+    .update({ task_id: taskId, position })
     .eq('id', id)
     .select('*')
     .single()
@@ -169,4 +204,62 @@ export async function renameSubtask(id: string, title: string): Promise<Subtask>
 export async function deleteSubtask(id: string): Promise<void> {
   const { error } = await supabase.from('subtasks').delete().eq('id', id)
   if (error) throw error
+}
+
+// Cross-table conversions. There is no server-side transaction here: we insert
+// the new row, then delete the old one (offline is read-only, so no write queue
+// to reconcile). The same insert-then-delete shape the rebalance path uses.
+
+// A task becomes a subtask of `parentId`. Only ever called for an open, childless
+// task (Board guards this), so done is false and completed_at null in practice —
+// but we carry them through so the mapping is total and future-proof.
+export async function taskToSubtask(
+  task: Task,
+  parentId: string,
+  position: number,
+): Promise<Subtask> {
+  const { data, error } = await supabase
+    .from('subtasks')
+    .insert({
+      user_id: task.user_id,
+      task_id: parentId,
+      title: task.title,
+      position,
+      done: task.done,
+      completed_at: task.completed_at,
+      duration_min: task.duration_min,
+      start_time: task.start_time,
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  await deleteTask(task.id)
+  return data as Subtask
+}
+
+// A subtask is promoted to a full task in `bucket` (date null for the backlog).
+export async function subtaskToTask(
+  subtask: Subtask,
+  bucket: Bucket,
+  date: string | null,
+  position: number,
+): Promise<Task> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert({
+      user_id: subtask.user_id,
+      title: subtask.title,
+      bucket,
+      date,
+      position,
+      done: subtask.done,
+      completed_at: subtask.completed_at,
+      duration_min: subtask.duration_min,
+      start_time: subtask.start_time,
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  await deleteSubtask(subtask.id)
+  return data as Task
 }

@@ -1,6 +1,17 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Subtask } from '../lib/types'
 import type { Shade } from '../lib/shading'
+import { formatDuration, formatTime } from '../lib/duration'
+
+// Sortable ids are namespaced so a subtask never collides with a task id in the
+// shared DndContext. Board parses the same prefix back off on drop.
+export const subtaskDragId = (id: string) => `sub:${id}`
+
+// A drag that ends over the row still fires a click; anything past this was a
+// drag, not a tap, and must not open the editor. Mirrors TaskCard's TAP_SLOP_PX.
+const TAP_SLOP_PX = 8
 
 interface Props {
   subtasks: Subtask[] // already sorted by position
@@ -8,134 +19,150 @@ interface Props {
    *  belonging to their task rather than floating free. */
   shade: Shade
   onToggle: (subtask: Subtask) => void
-  onAdd: (title: string) => void
-  onRename: (subtask: Subtask, title: string) => void
+  onAdd: () => void
+  onEdit: (subtask: Subtask) => void
   onDelete: (subtask: Subtask) => void
 }
 
 /**
  * The checklist that unfolds beneath a task card. Rendered inside the sortable
  * wrapper but OUTSIDE the draggable card row, so dragging the parent is
- * unaffected and taps here never start a drag.
+ * unaffected. Each row is itself sortable (long-press to lift) so subtasks
+ * reorder within the list, re-parent onto another task, or promote onto a day —
+ * all handled by Board's single DndContext.
  */
-export function SubtaskList({
-  subtasks,
-  shade,
-  onToggle,
-  onAdd,
-  onRename,
-  onDelete,
-}: Props) {
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState('')
-
-  function commitRename(subtask: Subtask) {
-    const title = draft.trim()
-    setEditingId(null)
-    if (title && title !== subtask.title) onRename(subtask, title)
-  }
-
+export function SubtaskList({ subtasks, shade, onToggle, onAdd, onEdit, onDelete }: Props) {
+  const chipBg = shade.light ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.20)'
   return (
     <div className="subtasks">
-      {subtasks.map((s) => (
-        <div key={s.id} className="subtask">
-          <button
-            type="button"
-            className="subtask-check"
-            aria-label={s.done ? 'Mark subtask not done' : 'Mark subtask done'}
-            onClick={() => onToggle(s)}
-            style={{
-              borderColor: shade.foreground,
-              background: s.done ? shade.foreground : 'transparent',
-              color: shade.background,
-            }}
-          >
-            {s.done ? '✓' : ''}
-          </button>
+      <SortableContext
+        items={subtasks.map((s) => subtaskDragId(s.id))}
+        strategy={verticalListSortingStrategy}
+      >
+        {subtasks.map((s) => (
+          <SubtaskRow
+            key={s.id}
+            subtask={s}
+            shade={shade}
+            chipBg={chipBg}
+            onToggle={onToggle}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </SortableContext>
 
-          {editingId === s.id ? (
-            <input
-              className="subtask-input"
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => commitRename(s)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitRename(s)
-                if (e.key === 'Escape') setEditingId(null)
-              }}
-              maxLength={200}
-            />
-          ) : (
-            <span
-              className="subtask-title"
-              style={{
-                textDecoration: s.done ? 'line-through' : 'none',
-                opacity: s.done ? 0.55 : 0.9,
-              }}
-              onClick={() => {
-                setDraft(s.title)
-                setEditingId(s.id)
-              }}
-            >
-              {s.title}
-            </span>
-          )}
-
-          <button
-            type="button"
-            className="subtask-delete"
-            aria-label="Delete subtask"
-            onClick={() => onDelete(s)}
-          >
-            ×
-          </button>
-        </div>
-      ))}
-
-      <AddSubtaskRow onAdd={onAdd} accent={shade.foreground} />
+      <button
+        type="button"
+        className="subtask subtask-add"
+        onClick={onAdd}
+        style={{ color: shade.foreground }}
+      >
+        <span className="subtask-plus">+</span>
+        <span className="subtask-add-label">Add subtask</span>
+      </button>
     </div>
   )
 }
 
-/** A persistent input row so several subtasks can be typed in a row. */
-function AddSubtaskRow({
-  onAdd,
-  accent,
+function SubtaskRow({
+  subtask: s,
+  shade,
+  chipBg,
+  onToggle,
+  onEdit,
+  onDelete,
 }: {
-  onAdd: (title: string) => void
-  accent: string
+  subtask: Subtask
+  shade: Shade
+  chipBg: string
+  onToggle: (subtask: Subtask) => void
+  onEdit: (subtask: Subtask) => void
+  onDelete: (subtask: Subtask) => void
 }) {
-  const [value, setValue] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  // Completed subtasks, like completed tasks, are not draggable.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: subtaskDragId(s.id), disabled: s.done })
+  const downAt = useRef<{ x: number; y: number } | null>(null)
 
-  function submit() {
-    const title = value.trim()
-    if (!title) return
-    onAdd(title)
-    setValue('')
-    // Keep focus so the next item can be typed straight away.
-    inputRef.current?.focus()
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    touchAction: 'none',
   }
 
   return (
-    <div className="subtask subtask-add">
-      <span className="subtask-plus" style={{ color: accent }}>
-        +
-      </span>
-      <input
-        ref={inputRef}
-        className="subtask-input"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit()
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="subtask"
+      {...attributes}
+      {...listeners}
+      // Capture phase so recording the tap origin doesn't displace dnd-kit's
+      // bubble-phase onPointerDown from {...listeners} (see TaskCard).
+      onPointerDownCapture={(e) => {
+        downAt.current = { x: e.clientX, y: e.clientY }
+      }}
+      onClick={(e) => {
+        const from = downAt.current
+        downAt.current = null
+        if (!from) return
+        if (Math.hypot(e.clientX - from.x, e.clientY - from.y) > TAP_SLOP_PX) return
+        onEdit(s)
+      }}
+    >
+      <button
+        type="button"
+        className="subtask-check"
+        aria-label={s.done ? 'Mark subtask not done' : 'Mark subtask done'}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle(s)
         }}
-        onBlur={submit}
-        placeholder="Add subtask"
-        enterKeyHint="done"
-        maxLength={200}
-      />
+        onPointerDown={(e) => e.stopPropagation()}
+        style={{
+          borderColor: shade.foreground,
+          background: s.done ? shade.foreground : 'transparent',
+          color: shade.background,
+        }}
+      >
+        {s.done ? '✓' : ''}
+      </button>
+
+      <span
+        className="subtask-title"
+        style={{
+          textDecoration: s.done ? 'line-through' : 'none',
+          opacity: s.done ? 0.55 : 0.9,
+        }}
+      >
+        {s.title}
+      </span>
+
+      {s.start_time && (
+        <span className="chip subtask-chip" style={{ background: chipBg }}>
+          {formatTime(s.start_time)}
+        </span>
+      )}
+      {s.duration_min != null && (
+        <span className="chip subtask-chip" style={{ background: chipBg }}>
+          {formatDuration(s.duration_min)}
+        </span>
+      )}
+
+      <button
+        type="button"
+        className="subtask-delete"
+        aria-label="Delete subtask"
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete(s)
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        ×
+      </button>
     </div>
   )
 }

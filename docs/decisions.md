@@ -307,6 +307,44 @@ both, or neither.
 
 ---
 
+## D11 — Subtasks gain task parity and drag conversion
+
+*Accepted.* Revises D9 at the project owner's request. A subtask stops being a
+"lightweight checklist item" and becomes a **nested task, capped at one level**.
+Two things change; the load-bearing invariants do not.
+
+**Subtasks can be dragged in and out.** Dropping a task onto the **central band**
+of another card nests it as that card's subtask (dropping near a card's edge, or
+on a day, still reorders/moves). Dragging a subtask onto a day promotes it back to
+a task; onto another card's band it re-parents; over a sibling it reorders. The
+edge-vs-centre split is the whole disambiguation — see
+[`0006`](../supabase/migrations/0006_subtask_parity.sql) and `Board.tsx`
+(`nestTarget`). For any of this to fire, the drag's `over` must resolve to a
+sibling **card**, not the day it sits in — so `Board.tsx` sets a custom
+`collisionDetection` (`nestAwareCollision`) that prefers the card/subtask under
+the pointer over the section-body droppable. Without it the default
+intersection-ratio collision lets the full-column day rect out-compete a single
+card, and same-day nesting never triggers (no ring). Do not drop it.
+
+**Subtasks carry the same fields a task does.** So the round-trip is lossless,
+`subtasks` gains `duration_min`, `start_time` and `completed_at`, mirroring
+`tasks` exactly, and both add/edit go through the **same `TaskSheet`** (tinted by
+the parent's bucket). This reverses the "No `duration_min` / `completed_at`"
+bullets D9 wrote into [`data-model.md §6`](data-model.md#6-subtasks).
+
+**What still holds.** A subtask still has **no bucket, date or shading** — it
+follows its parent by `task_id`, so carry-over and the colour ramp are untouched.
+The weekly review stays **tasks-only**; `completed_at` on a subtask exists solely
+so a promoted subtask keeps its timestamp and so the done-toggle mirrors a task's.
+Subtasks are still shown in plain `position asc` (no done/`completed_at` split).
+
+**Guards (the drag refuses; the card snaps back, no error).** A **completed** task
+cannot nest — that would move a completed task and drop the timestamp the review
+runs on ("completed tasks never move"); uncomplete it first. A task that **already
+has subtasks** cannot nest either — one level only, no grandchildren.
+
+---
+
 ## Still genuinely open
 
 Not blocking, but undecided:

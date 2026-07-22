@@ -492,6 +492,11 @@ body {
   animation: orgo-in 0.18s ease;
   cursor: pointer; /* tap opens the rename sheet */
   -webkit-tap-highlight-color: transparent;
+  /* A long-press lifts the card for drag; without these iOS instead fires its
+     text-selection + Copy callout over the title. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 @keyframes orgo-in {
   from {
@@ -536,6 +541,36 @@ body {
   opacity: 0.5;
   cursor: pointer;
   padding: 0 2px;
+}
+
+/* Swipe-to-delete -----------------------------------------------------------*/
+/* Clips the row as it slides left, exposing the red bin panel beneath it. */
+.task-swipe {
+  position: relative;
+  border-radius: 11px;
+  overflow: hidden;
+}
+.task-reveal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  border-radius: 11px;
+  background: oklch(0.6 0.19 25);
+}
+.task-reveal-btn {
+  flex: none;
+  width: 76px; /* matches REVEAL_PX in TaskCard */
+  border: none;
+  background: none;
+  color: oklch(1 0 95);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.task-reveal-btn:active {
+  background: oklch(0.54 0.19 25);
 }
 
 /* Subtasks ------------------------------------------------------------------*/
@@ -590,6 +625,12 @@ body {
   align-items: center;
   gap: 8px;
   padding: 3px 2px;
+  cursor: pointer; /* tap opens the edit sheet; long-press lifts for drag */
+  -webkit-tap-highlight-color: transparent;
+  /* Same as .task: keep the long-press a drag, not an iOS Copy callout. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .subtask-check {
   flex: none;
@@ -638,8 +679,17 @@ body {
   cursor: pointer;
   padding: 0 2px;
 }
+/* The add row is a full-width button; reset it back to a plain row. */
 .subtask-add {
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
   opacity: 0.8;
+}
+.subtask-add-label {
+  font-size: 13px;
 }
 .subtask-plus {
   flex: none;
@@ -647,6 +697,24 @@ body {
   text-align: center;
   font-size: 15px;
   line-height: 1;
+}
+/* Duration / "when" chips on a subtask row — a touch smaller than a task's. */
+.subtask-chip {
+  flex: none;
+  font-size: 10px;
+  padding: 1px 4px;
+  opacity: 0.9;
+}
+/* Floating preview while a subtask is dragged. */
+.subtask-drag {
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: oklch(1 0 95 / 0.92);
+  box-shadow: 0 6px 16px oklch(0.22 0.01 95 / 0.28);
+  cursor: grabbing;
+}
+.subtask-drag .subtask-title {
+  opacity: 1;
 }
 
 /* Confirm sheet -------------------------------------------------------------*/

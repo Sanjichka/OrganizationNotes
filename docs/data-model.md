@@ -198,8 +198,11 @@ stay idempotent.
 
 ## 6. Subtasks
 
-A lightweight checklist under a task. See [`decisions.md D9`](decisions.md#d9--subtasks-are-a-checklist-not-nested-tasks)
-for why this is a child table rather than a `parent_id` on `tasks`.
+A task nested under another task, one level deep. See
+[`decisions.md D9`](decisions.md#d9--subtasks-are-a-checklist-not-nested-tasks)
+for why this is a child table rather than a `parent_id` on `tasks`, and
+[`D11`](decisions.md#d11--subtasks-gain-task-parity-and-drag-conversion) for why
+it later grew task-parity fields and drag conversion.
 
 ```sql
 create table subtasks (
@@ -212,6 +215,11 @@ create table subtasks (
   position      double precision not null,
   done          boolean not null default false,
 
+  -- Task-parity fields (0006), so a task can be dragged in and back losslessly.
+  duration_min  integer check (duration_min > 0),
+  start_time    time,
+  completed_at  timestamptz,
+
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -221,16 +229,17 @@ create index subtasks_task_idx on subtasks (task_id, position);
 
 The design lives in the shape of the table:
 
-- **No `bucket`, `date`, or `duration_min`.** A subtask has no day of its own; it
-  follows its parent. `on delete cascade` means deleting the parent removes it,
-  with no client cleanup.
-- **No `completed_at`.** Unlike a task, a subtask never feeds the weekly review, so
-  `done` alone suffices. (A task keeps `completed_at` precisely because the review
-  depends on it.)
+- **No `bucket` or `date`.** A subtask has no day of its own; it follows its
+  parent. `on delete cascade` means deleting the parent removes it, with no client
+  cleanup.
+- **`duration_min`, `start_time`, `completed_at`** mirror `tasks` exactly (D11), so
+  dragging a task into a subtask — and back out — loses nothing. `completed_at` is
+  set on the done-toggle just like a task's, but a subtask **still never feeds the
+  weekly review**; the column exists only so a promoted subtask keeps its stamp.
 - **`position` is fractional**, exactly as for tasks (§3) — scoped per parent —
   and reuses the same helpers. Subtasks are shown in plain `position asc` order;
-  they have no done/`completed_at` split, so the task canonical sort does not
-  apply to them.
+  the task canonical sort does not apply to them (done ones stay in place, struck
+  through, rather than sinking to a done section).
 
 RLS mirrors `tasks`: a single `"own subtasks"` policy `for all`
 using/with-check `auth.uid() = user_id`, plus the shared `touch_updated_at`

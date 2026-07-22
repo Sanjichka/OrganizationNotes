@@ -14,6 +14,9 @@ export interface TaskDraft {
 
 interface Props {
   bucket: Bucket
+  /** 'task' (default) or 'subtask' — only changes the sheet's wording. A subtask
+   *  is composed in the same sheet, tinted by its parent's bucket. */
+  kind?: 'task' | 'subtask'
   /** Present when editing an existing task; absent when creating one. */
   initialTitle?: string
   initialDuration?: number | null
@@ -32,6 +35,7 @@ interface Props {
  */
 export function TaskSheet({
   bucket,
+  kind = 'task',
   initialTitle,
   initialDuration,
   initialStart,
@@ -39,6 +43,7 @@ export function TaskSheet({
   onCancel,
 }: Props) {
   const editing = initialTitle !== undefined
+  const noun = kind === 'subtask' ? 'subtask' : 'task'
   const [title, setTitle] = useState(initialTitle ?? '')
   const [durationMin, setDurationMin] = useState<number | null>(
     initialDuration ?? null,
@@ -149,8 +154,10 @@ export function TaskSheet({
         aria-modal="true"
         aria-label={
           editing
-            ? 'Edit task'
-            : `New Task ${preposition} ${BUCKET_LABEL[bucket]}`
+            ? `Edit ${noun}`
+            : kind === 'subtask'
+              ? 'New subtask'
+              : `New task ${preposition} ${BUCKET_LABEL[bucket]}`
         }
         style={{ background: shade.background }}
         onClick={(e) => e.stopPropagation()}
@@ -159,7 +166,9 @@ export function TaskSheet({
         <div className="sheet-grip" style={{ background: shade.accent }} />
         <h2 className="sheet-title" style={{ color: shade.label }}>
           {editing ? (
-            'Edit task'
+            `Edit ${noun}`
+          ) : kind === 'subtask' ? (
+            'New subtask'
           ) : (
             <>
               New Task {preposition}{' '}
@@ -250,7 +259,7 @@ export function TaskSheet({
             style={{ background: shade.accent }}
             disabled={!trimmed || unchanged}
           >
-            {editing ? 'Save' : 'Add task'}
+            {editing ? 'Save' : `Add ${noun}`}
           </button>
           <button type="button" className="btn btn-quiet" onClick={onCancel}>
             Cancel

@@ -16,10 +16,12 @@ interface Props {
   onDeleteTask: (task: Task) => void
   onEditTask: (task: Task) => void
   onAdd: (bucket: Bucket) => void
-  onAddSubtask: (task: Task, title: string) => void
+  onAddSubtask: (task: Task) => void
+  onEditSubtask: (subtask: Subtask) => void
   onToggleSubtask: (subtask: Subtask) => void
-  onRenameSubtask: (subtask: Subtask, title: string) => void
   onDeleteSubtask: (subtask: Subtask) => void
+  /** Task id currently highlighted as a nest drop target, if any. */
+  nestingId: string | null
 }
 
 export function DaySection({
@@ -34,9 +36,10 @@ export function DaySection({
   onEditTask,
   onAdd,
   onAddSubtask,
+  onEditSubtask,
   onToggleSubtask,
-  onRenameSubtask,
   onDeleteSubtask,
+  nestingId,
 }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: `bucket:${bucket}` })
   const open = tasks.filter((t) => !t.done)
@@ -108,12 +111,13 @@ export function DaySection({
                 task={t}
                 shade={openShade(bucket, i, n)}
                 subtasks={subtasksByTask[t.id] ?? []}
+                nesting={t.id === nestingId}
                 onToggle={onToggleTask}
                 onDelete={onDeleteTask}
                 onEdit={onEditTask}
                 onAddSubtask={onAddSubtask}
+                onEditSubtask={onEditSubtask}
                 onToggleSubtask={onToggleSubtask}
-                onRenameSubtask={onRenameSubtask}
                 onDeleteSubtask={onDeleteSubtask}
               />
             ))}
@@ -124,12 +128,13 @@ export function DaySection({
               task={t}
               shade={doneShade(bucket)}
               subtasks={subtasksByTask[t.id] ?? []}
+              nesting={t.id === nestingId}
               onToggle={onToggleTask}
               onDelete={onDeleteTask}
               onEdit={onEditTask}
               onAddSubtask={onAddSubtask}
+              onEditSubtask={onEditSubtask}
               onToggleSubtask={onToggleSubtask}
-              onRenameSubtask={onRenameSubtask}
               onDeleteSubtask={onDeleteSubtask}
             />
           ))}
