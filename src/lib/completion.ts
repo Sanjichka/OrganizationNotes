@@ -35,13 +35,68 @@ export function tallyUnits(
   )
 }
 
-// Flat-unit completion of a set of tasks as a whole percent. Empty set → 0.
-export function completionPct(
+// The week's review ----------------------------------------------------------
+// Counted by planned_date, NOT by the bucket a task currently sits in. Once the
+// nightly cascade moves Wednesday's leftovers to Thursday, counting by bucket
+// leaves Wednesday reading 3/3 when it was 3 of 5 — the day's numerator survives
+// in completed_at but its denominator does not. planned_date is that missing
+// denominator: carry-over never rewrites it, only a deliberate move does.
+// See docs/decisions.md D13.
+
+/** The tasks planned for one day, wherever they have since ended up. */
+export function plannedOn(tasks: Task[], date: string): Task[] {
+  return tasks.filter((t) => t.planned_date === date)
+}
+
+export interface DayUnits extends Units {
+  date: string
+  pct: number
+  /** `total` came from a manual correction rather than the rows. */
+  overridden: boolean
+}
+
+/**
+ * One day's figure. `total` is the derived unit count unless the user has
+ * corrected it. A correction below the done count would push past 100%, so the
+ * percentage is clamped — the label still shows what was typed.
+ */
+function dayUnits(
   tasks: Task[],
   subtasksByTask: Record<string, Subtask[]>,
-): number {
-  const { done, total } = tallyUnits(tasks, subtasksByTask)
-  return total ? Math.round((done / total) * 100) : 0
+  date: string,
+  override: number | undefined,
+): DayUnits {
+  const { done, total } = tallyUnits(plannedOn(tasks, date), subtasksByTask)
+  const shown = override ?? total
+  return {
+    date,
+    done,
+    total: shown,
+    overridden: override !== undefined,
+    pct: shown ? Math.min(100, Math.round((done / shown) * 100)) : 0,
+  }
+}
+
+/**
+ * The canonical week figure: per-day units plus the roll-up. Both the header
+ * percentage and the whole Review screen read this, so no two numbers on screen
+ * can tell different stories (decisions.md D12).
+ */
+export function weekReview(
+  tasks: Task[],
+  subtasksByTask: Record<string, Subtask[]>,
+  dates: string[],
+  overrides: Record<string, number> = {},
+): { days: DayUnits[]; done: number; total: number; pct: number } {
+  const days = dates.map((d) => dayUnits(tasks, subtasksByTask, d, overrides[d]))
+  const done = days.reduce((n, d) => n + d.done, 0)
+  const total = days.reduce((n, d) => n + d.total, 0)
+  return {
+    days,
+    done,
+    total,
+    pct: total ? Math.min(100, Math.round((done / total) * 100)) : 0,
+  }
 }
 
 // Group subtasks under their parent task id, for the helpers above.

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Bucket, Subtask, Task } from '../lib/types'
+import type { Bucket, DayPlanOverride, Subtask, Task } from '../lib/types'
 import { appendPosition } from '../lib/position'
 import { todayISODate } from '../lib/buckets'
 
@@ -12,14 +12,15 @@ export async function fetchTasks(): Promise<Task[]> {
   return data as Task[]
 }
 
-// Weekly carry-over. On the first open of a new week the DB moves every open
-// day-bucket task into the backlog (see supabase/migrations/0004). Idempotent —
-// guarded by user_state.last_rollover_on — so calling it on every app open is
-// safe. Returns the number of tasks swept (0 when the week already rolled over).
-// "Today" is the client's LOCAL day so the week boundary follows the user's
-// calendar, not the server's UTC clock (decisions.md D2).
-export async function runWeeklyRollover(): Promise<number> {
-  const { data, error } = await supabase.rpc('rollover_week', {
+// Nightly carry-over. For every day boundary crossed since the last run, the DB
+// moves that day's still-open tasks into the next day — and Sunday's into the
+// backlog (see supabase/migrations/0007). A part-done checklist splits rather
+// than moving whole. Idempotent — guarded by user_state.last_rollover_on — so
+// calling it on every app open is safe. Returns the number of tasks carried.
+// "Today" is the client's LOCAL day so the boundary follows the user's midnight,
+// not the server's UTC clock (decisions.md D2).
+export async function runDailyRollover(): Promise<number> {
+  const { data, error } = await supabase.rpc('rollover_days', {
     p_today: todayISODate(),
   })
   if (error) throw error
@@ -91,6 +92,10 @@ export async function updateTask(
   return data as Task
 }
 
+// A deliberate move by the user, so it is a REPLAN: planned_date follows the
+// destination. This is the one write that rewrites provenance — carry-over
+// never does, which is what lets the review keep a day's denominator after its
+// leftovers cascade onward (decisions.md D13).
 export async function moveTask(
   taskId: string,
   bucket: Bucket,
@@ -99,7 +104,21 @@ export async function moveTask(
 ): Promise<Task> {
   const { data, error } = await supabase
     .from('tasks')
-    .update({ bucket, date, position })
+    .update({ bucket, date, position, planned_date: date })
+    .eq('id', taskId)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as Task
+}
+
+// Renumber one task in place, for the precision-collapse rebalance. Position
+// only: a task whose neighbours were renumbered has not been moved or replanned,
+// so neither its bucket nor its planned_date may be touched.
+export async function renumberTask(taskId: string, position: number): Promise<Task> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({ position })
     .eq('id', taskId)
     .select('*')
     .single()
@@ -109,6 +128,42 @@ export async function moveTask(
 
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from('tasks').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Plan overrides --------------------------------------------------------------
+// A manual correction to one day's planned total on the review, keyed by the
+// plan date. Absent row = use the derived figure. Only the denominator is
+// overridable; see decisions.md D13.
+
+export async function fetchPlanOverrides(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from('day_plan_override').select('*')
+  if (error) throw error
+  const map: Record<string, number> = {}
+  for (const row of data as DayPlanOverride[]) map[row.plan_date] = row.planned_total
+  return map
+}
+
+export async function setPlanOverride(
+  userId: string,
+  planDate: string,
+  plannedTotal: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from('day_plan_override')
+    .upsert(
+      { user_id: userId, plan_date: planDate, planned_total: plannedTotal },
+      { onConflict: 'user_id,plan_date' },
+    )
+  if (error) throw error
+}
+
+// Drop the correction and fall back to the derived total.
+export async function clearPlanOverride(planDate: string): Promise<void> {
+  const { error } = await supabase
+    .from('day_plan_override')
+    .delete()
+    .eq('plan_date', planDate)
   if (error) throw error
 }
 

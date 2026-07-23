@@ -133,19 +133,32 @@ body {
 .seg {
   margin-top: 14px;
   display: flex;
-  gap: 3px;
+  align-items: stretch;
+  gap: 2px;
   padding: 3px;
   background: oklch(0.94 0.005 95);
   border-radius: 11px;
 }
+/* Four equal segments on a 360px phone leaves ~82px each. The labels wrap to a
+   second line rather than truncate: "Weekly" and "Overall" are the only words
+   that tell the two reviews apart, so an ellipsis would eat the distinction. */
 .seg-btn {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  /* All four segments stretch to the tallest, so the one-line label ("Week")
+     has to be centred against the two-line ones rather than sitting on top. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   border: none;
   border-radius: 9px;
   background: none;
-  padding: 8px;
+  padding: 7px 2px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 11.5px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
   font-weight: 600;
   color: var(--ink-2);
   cursor: pointer;
@@ -252,6 +265,14 @@ body {
 .review {
   padding: 4px 8px;
   animation: orgo-in 0.2s ease;
+}
+/* A view with nothing in it yet. Centred and quiet — it is a placeholder, not
+   an error, and should not compete with the nav above it. */
+.empty-page {
+  color: var(--ink-3);
+  font-size: 14px;
+  text-align: center;
+  padding: 72px 0;
 }
 .review-card {
   background: oklch(0.97 0.004 95);
@@ -364,6 +385,61 @@ body {
   font-size: 12px;
   font-weight: 500;
   color: var(--ink-2);
+}
+/* A hand-corrected planned total, so the figure doesn't silently pass for
+   derived. Underline rather than colour — colour is fully spent on days. */
+.by-day-count-edited {
+  color: var(--ink);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+/* While editing, the field replaces both the count and the pencil, so the row
+   keeps its width and the bars stay aligned. */
+.by-day-count-editing {
+  /* 48 (count) + 12 (gap) + 22 (pencil, less its -4 right margin). */
+  width: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+/* The pencil sits outside the count so the count's width stays fixed and the
+   bars all end on the same line. */
+.by-day-edit {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: -6px -4px -6px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  opacity: 0.55;
+  cursor: pointer;
+}
+.by-day-edit:active {
+  opacity: 1;
+}
+.by-day-input {
+  width: 34px;
+  margin-left: 2px;
+  padding: 1px 3px;
+  border: 1px solid var(--ink-2);
+  border-radius: 5px;
+  background: var(--surface);
+  font: inherit;
+  color: var(--ink);
+  text-align: right;
+}
+/* Spinners would not survive the 34px field, and this is a phone anyway. */
+.by-day-input::-webkit-outer-spin-button,
+.by-day-input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.by-day-input[type='number'] {
+  appearance: textfield;
 }
 
 .board-error {

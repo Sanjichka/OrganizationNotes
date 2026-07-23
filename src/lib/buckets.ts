@@ -67,6 +67,21 @@ export function todayISODate(ref = new Date()): string {
   return toISODate(ref)
 }
 
+/**
+ * A date `offset` whole weeks from `ref` — 0 is this week, 1 is next week.
+ *
+ * This is the whole of the two-week model. A day-bucket task always carries a
+ * real calendar date, so which week it belongs to is a question about its date,
+ * not about extra state: Week and Next week are two filters over one table.
+ * When the week turns, no row moves — next week's tasks simply start matching
+ * the other filter. See docs/decisions.md D14.
+ */
+export function weekRef(offset: number, ref = new Date()): Date {
+  const d = new Date(ref)
+  d.setDate(ref.getDate() + offset * 7)
+  return d
+}
+
 /** The date (YYYY-MM-DD) of each weekday in the week containing `ref`. */
 export function weekDates(ref = new Date()): Record<Bucket, string | null> {
   const monday = new Date(ref)

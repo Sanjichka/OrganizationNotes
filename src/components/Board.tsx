@@ -15,17 +15,25 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import type { Bucket, Subtask, Task } from '../lib/types'
-import { ALL_BUCKETS, weekDates, todayBucket } from '../lib/buckets'
+import {
+  ALL_BUCKETS,
+  DAY_BUCKETS,
+  weekDates,
+  weekRef,
+  todayBucket,
+} from '../lib/buckets'
 import { arrayMove } from '@dnd-kit/sortable'
 import { appendPosition, between, canonicalSort } from '../lib/position'
 import { openShade } from '../lib/shading'
-import { completionPct } from '../lib/completion'
+import { weekReview } from '../lib/completion'
 import {
   fetchTasks,
-  runWeeklyRollover,
+  runDailyRollover,
   addTask,
   setDone,
   moveTask,
+  renumberTask,
+  fetchPlanOverrides,
   deleteTask,
   updateTask,
   fetchSubtasks,
@@ -100,11 +108,14 @@ function inCentreBand(
 
 export function Board({
   session,
+  weekOffset,
   page,
   onChange,
   onOpenProfile,
 }: {
   session: Session
+  /** Which week this board plans: 0 = this week, 1 = next week. */
+  weekOffset: number
   page: Page
   onChange: (p: Page) => void
   onOpenProfile: () => void
@@ -112,6 +123,10 @@ export function Board({
   const userId = session.user.id
   const [tasks, setTasks] = useState<Task[]>([])
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
+  // Manual corrections to a day's planned total, keyed by plan date. Read-only
+  // here — they are edited on the Review — but the header percentage has to
+  // honour them or the two tabs would disagree.
+  const [overrides, setOverrides] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<Bucket>>(new Set())
@@ -131,8 +146,23 @@ export function Board({
   // The subtask being edited, or null when that sheet is shut.
   const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null)
 
-  const dates = useMemo(() => weekDates(), [])
+  // Both weeks' calendars, built once. `dates` is the one this board writes to —
+  // adding to Tuesday on the next-week board dates the task next Tuesday, and
+  // that date is the only thing that puts it on that board.
+  const weeks = useMemo(() => [0, 1].map((o) => weekDates(weekRef(o))), [])
+  const dates = weeks[weekOffset]
+  // The seven dates of each week, for the review roll-up and the board filter.
+  const weekDateLists = useMemo(
+    () => weeks.map((w) => DAY_BUCKETS.map((b) => w[b] as string)),
+    [weeks],
+  )
+  const dateSets = useMemo(
+    () => weekDateLists.map((list) => new Set(list)),
+    [weekDateLists],
+  )
   const today = useMemo(() => todayBucket(), [])
+  // Next week has no "today" to highlight — it hasn't happened yet.
+  const todayOnBoard = weekOffset === 0 ? today : null
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -145,27 +175,51 @@ export function Board({
   useEffect(() => {
     // Collapse everything except today on first load.
     setCollapsed(new Set(ALL_BUCKETS.filter((b) => b !== today)))
-    // Weekly carry-over runs first so the fetch below reflects any sweep. It is
-    // idempotent, and a failure (e.g. offline — writes don't run offline) must
-    // not block the board, so we swallow it and load whatever we can read.
-    runWeeklyRollover()
+    // Nightly carry-over runs first so the fetch below reflects any cascade. It
+    // is idempotent, and a failure (e.g. offline — writes don't run offline)
+    // must not block the board, so we swallow it and load whatever we can read.
+    runDailyRollover()
       .catch(() => 0)
-      .then(() => Promise.all([fetchTasks(), fetchSubtasks()]))
-      .then(([t, s]) => {
+      .then(() => Promise.all([fetchTasks(), fetchSubtasks(), fetchPlanOverrides()]))
+      .then(([t, s, o]) => {
         setTasks(t)
         setSubtasks(s)
+        setOverrides(o)
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [today])
 
+  // Which tasks this board shows. A day-bucket task always has a date (the
+  // schema's backlog_has_no_date check guarantees it), so the date decides the
+  // week and nothing has to be stored or migrated when the week turns.
+  //
+  // The backlog is week-agnostic and appears on both boards — that is how you
+  // plan next week, by dragging things out of it.
+  //
+  // A day task dated outside both weeks is last week's history: the review still
+  // counts it by planned_date, but the board has finished with it. Unless it is
+  // still OPEN, in which case carry-over has failed it, and it is shown on this
+  // week rather than being left invisible.
   const byBucket = useMemo(() => {
     const map = {} as Record<Bucket, Task[]>
     for (const b of ALL_BUCKETS) map[b] = []
-    for (const t of tasks) map[t.bucket].push(t)
+    for (const t of tasks) {
+      if (t.bucket === 'backlog') {
+        map.backlog.push(t)
+        continue
+      }
+      const date = t.date as string
+      const onBoard = dateSets[1].has(date)
+        ? 1
+        : dateSets[0].has(date) || !t.done
+          ? 0
+          : -1
+      if (onBoard === weekOffset) map[t.bucket].push(t)
+    }
     for (const b of ALL_BUCKETS) map[b].sort(canonicalSort)
     return map
-  }, [tasks])
+  }, [tasks, dateSets, weekOffset])
 
   const subtasksByTask = useMemo(() => {
     const map: Record<string, Subtask[]> = {}
@@ -174,9 +228,14 @@ export function Board({
     return map
   }, [subtasks])
 
+  // Counted by planned_date and corrected by the same overrides the Review reads,
+  // so the header shows the identical figure on every tab (decisions.md D12/D13).
+  // Always *this* week, even while you are planning the next one — a percentage
+  // that changed meaning with the tab would be worse than useless. Next week's
+  // tasks are planned for next week's dates, so they never reach this figure.
   const weekPct = useMemo(
-    () => completionPct(tasks.filter((t) => t.bucket !== 'backlog'), subtasksByTask),
-    [tasks, subtasksByTask],
+    () => weekReview(tasks, subtasksByTask, weekDateLists[0], overrides).pct,
+    [tasks, subtasksByTask, weekDateLists, overrides],
   )
 
   function upsertLocal(updated: Task) {
@@ -604,14 +663,18 @@ export function Board({
     }
 
     // Precision collapse: renumber the target bucket 0,1,2,… with active inserted.
+    // Only the dragged task is actually moving — its neighbours are being
+    // renumbered, so they must keep their bucket and, crucially, their
+    // planned_date. Rewriting a bystander's plan date here would silently
+    // re-attribute it to today and corrupt the review (decisions.md D13).
     const rebuilt = [...openList]
     rebuilt.splice(idx, 0, { ...activeTask, bucket: targetBucket, date })
     try {
       await Promise.all(
         rebuilt.map((t, i) =>
-          moveTask(t.id, targetBucket, date, i).catch((err) => {
-            throw err
-          }),
+          t.id === activeTask.id
+            ? moveTask(t.id, targetBucket, date, i)
+            : renumberTask(t.id, i),
         ),
       )
     } catch (err) {
@@ -645,6 +708,7 @@ export function Board({
       <AppHeader
         user={session.user}
         weekPct={weekPct}
+        weekOffset={weekOffset}
         page={page}
         onChange={onChange}
         onOpenProfile={onOpenProfile}
@@ -666,7 +730,7 @@ export function Board({
               bucket={b}
               tasks={byBucket[b]}
               subtasksByTask={subtasksByTask}
-              isToday={b === today}
+              isToday={b === todayOnBoard}
               collapsed={collapsed.has(b)}
               onToggleCollapse={toggleCollapse}
               onToggleTask={handleToggle}

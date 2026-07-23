@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import type { Bucket, Subtask, Task } from '../lib/types'
-import { DAY_BUCKETS, BUCKET_LABEL } from '../lib/buckets'
+import type { Subtask, Task } from '../lib/types'
+import { DAY_BUCKETS, BUCKET_LABEL, weekDates } from '../lib/buckets'
 import { sectionShade } from '../lib/shading'
-import { tallyUnits, groupSubtasks } from '../lib/completion'
-import { fetchTasks, fetchSubtasks } from '../data/tasks'
+import { tallyUnits, groupSubtasks, weekReview, type DayUnits } from '../lib/completion'
+import {
+  fetchTasks,
+  fetchSubtasks,
+  fetchPlanOverrides,
+  setPlanOverride,
+  clearPlanOverride,
+} from '../data/tasks'
 import { AppHeader } from './AppHeader'
 import { type Page } from './Tabs'
 
@@ -12,20 +18,14 @@ import { type Page } from './Tabs'
 const RING_R = 62
 const RING_C = 2 * Math.PI * RING_R
 
-interface DayStat {
-  bucket: Bucket
-  // Flat units: subtasks count individually, a childless task counts as one.
-  // See completion.ts / decisions.md D12.
-  done: number
-  total: number
-  pct: number
-}
-
 /**
  * The weekly review: a completion ring, the done / planned / backlog headline
- * figures, and a per-day breakdown. All of it is derived from the same task
- * rows the board reads — nothing here is stored. This is the scaffold from the
- * mockup, ready to grow (carried-over / dropped metrics, historical weeks).
+ * figures, and a per-day breakdown.
+ *
+ * Days are counted by `planned_date`, not by the bucket a task now sits in, so
+ * a day keeps its denominator after the nightly cascade moves its leftovers on
+ * (decisions.md D13). The planned total of any day can be corrected by hand via
+ * the pencil; the done count cannot, because it is evidence.
  */
 export function Stats({
   user,
@@ -40,12 +40,20 @@ export function Stats({
 }) {
   const [tasks, setTasks] = useState<Task[] | null>(null)
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
+  const [overrides, setOverrides] = useState<Record<string, number>>({})
+  const [error, setError] = useState<string | null>(null)
+
+  const dates = useMemo(() => {
+    const week = weekDates()
+    return DAY_BUCKETS.map((b) => week[b] as string)
+  }, [])
 
   useEffect(() => {
-    Promise.all([fetchTasks(), fetchSubtasks()])
-      .then(([t, s]) => {
+    Promise.all([fetchTasks(), fetchSubtasks(), fetchPlanOverrides()])
+      .then(([t, s, o]) => {
         setTasks(t)
         setSubtasks(s)
+        setOverrides(o)
       })
       .catch(() => setTasks([]))
   }, [])
@@ -53,25 +61,37 @@ export function Stats({
   const stats = useMemo(() => {
     const rows = tasks ?? []
     const subsByTask = groupSubtasks(subtasks)
-    const days: DayStat[] = DAY_BUCKETS.map((bucket) => {
-      const inBucket = rows.filter((t) => t.bucket === bucket)
-      const { done, total } = tallyUnits(inBucket, subsByTask)
-      return {
-        bucket,
-        done,
-        total,
-        pct: total ? Math.round((done / total) * 100) : 0,
-      }
-    })
-    const planned = days.reduce((n, d) => n + d.total, 0)
-    const doneTotal = days.reduce((n, d) => n + d.done, 0)
+    const week = weekReview(rows, subsByTask, dates, overrides)
     const backlog = tallyUnits(
       rows.filter((t) => t.bucket === 'backlog'),
       subsByTask,
     ).total
-    const weekPct = planned ? Math.round((doneTotal / planned) * 100) : 0
-    return { days, planned, doneTotal, backlog, weekPct }
-  }, [tasks, subtasks])
+    return { ...week, backlog }
+  }, [tasks, subtasks, overrides, dates])
+
+  // Write the correction through, then reflect it locally. An empty or unparsable
+  // value clears the override and the day falls back to its derived total.
+  async function commitOverride(date: string, raw: string) {
+    const trimmed = raw.trim()
+    const parsed = trimmed === '' ? null : Number.parseInt(trimmed, 10)
+    const next =
+      parsed === null || Number.isNaN(parsed) || parsed < 0 ? null : parsed
+    try {
+      if (next === null) {
+        await clearPlanOverride(date)
+        setOverrides((prev) => {
+          const { [date]: _dropped, ...rest } = prev
+          return rest
+        })
+      } else {
+        await setPlanOverride(user.id, date, next)
+        setOverrides((prev) => ({ ...prev, [date]: next }))
+      }
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
 
   const loading = tasks === null
 
@@ -79,7 +99,7 @@ export function Stats({
     <div className="board">
       <AppHeader
         user={user}
-        weekPct={stats.weekPct}
+        weekPct={stats.pct}
         page={page}
         onChange={onChange}
         onOpenProfile={onOpenProfile}
@@ -89,6 +109,8 @@ export function Stats({
         <p className="status">Loading…</p>
       ) : (
         <div className="review">
+          {error && <p className="board-error">{error}</p>}
+
           <section className="review-card">
             <div className="ring">
               <svg
@@ -113,50 +135,136 @@ export function Stats({
                   stroke="var(--accent)"
                   strokeWidth="14"
                   strokeLinecap="round"
-                  strokeDasharray={`${(RING_C * stats.weekPct) / 100} ${RING_C}`}
+                  strokeDasharray={`${(RING_C * stats.pct) / 100} ${RING_C}`}
                 />
               </svg>
               <div className="ring-center">
-                <span className="ring-pct">{stats.weekPct}%</span>
+                <span className="ring-pct">{stats.pct}%</span>
                 <span className="ring-label">completed</span>
               </div>
             </div>
 
             <div className="review-figures">
-              <Figure value={stats.doneTotal} label="done" />
-              <Figure value={stats.planned} label="planned" />
+              <Figure value={stats.done} label="done" />
+              <Figure value={stats.total} label="planned" />
               <Figure value={stats.backlog} label="backlog" tone="backlog" />
             </div>
           </section>
 
           <h2 className="review-section-label">By day</h2>
           <div className="by-day">
-            {stats.days.map((d) => {
-              const accent = sectionShade(d.bucket).accent
-              const pct = d.pct
-              return (
-                <div key={d.bucket} className="by-day-row">
-                  <span
-                    className="by-day-dot"
-                    style={{ background: accent }}
-                  />
-                  <span className="by-day-name">
-                    {BUCKET_LABEL[d.bucket].slice(0, 3)}
-                  </span>
-                  <div className="by-day-track">
-                    <div
-                      className="by-day-fill"
-                      style={{ width: `${pct}%`, background: accent }}
-                    />
-                  </div>
-                  <span className="by-day-count">
-                    {d.done}/{d.total}
-                  </span>
-                </div>
-              )
-            })}
+            {stats.days.map((d, i) => (
+              <DayRow
+                key={d.date}
+                day={d}
+                label={BUCKET_LABEL[DAY_BUCKETS[i]].slice(0, 3)}
+                accent={sectionShade(DAY_BUCKETS[i]).accent}
+                onCommit={(raw) => commitOverride(d.date, raw)}
+              />
+            ))}
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * One day's bar. The count doubles as the edit affordance: tapping the pencil
+ * swaps the planned total for a number field. Blur or Enter commits, Escape
+ * abandons, and an empty field restores the derived figure.
+ */
+function DayRow({
+  day,
+  label,
+  accent,
+  onCommit,
+}: {
+  day: DayUnits
+  label: string
+  accent: string
+  onCommit: (raw: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+  // Escape must not commit, but it blurs the field — so the blur handler needs
+  // to know the edit was already abandoned.
+  const abandoned = useRef(false)
+
+  useEffect(() => {
+    if (editing) input.current?.focus()
+  }, [editing])
+
+  function open() {
+    abandoned.current = false
+    setDraft(String(day.total))
+    setEditing(true)
+  }
+
+  function commit() {
+    if (abandoned.current) return
+    setEditing(false)
+    if (draft.trim() !== String(day.total)) onCommit(draft)
+  }
+
+  return (
+    <div className="by-day-row">
+      <span className="by-day-dot" style={{ background: accent }} />
+      <span className="by-day-name">{label}</span>
+      <div className="by-day-track">
+        <div
+          className="by-day-fill"
+          style={{ width: `${day.pct}%`, background: accent }}
+        />
+      </div>
+
+      {editing ? (
+        <span className="by-day-count by-day-count-editing">
+          {day.done}/
+          <input
+            ref={input}
+            className="by-day-input"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit()
+              if (e.key === 'Escape') {
+                abandoned.current = true
+                setEditing(false)
+              }
+            }}
+          />
+        </span>
+      ) : (
+        <>
+          <span
+            className={`by-day-count${day.overridden ? ' by-day-count-edited' : ''}`}
+          >
+            {day.done}/{day.total}
+          </span>
+          <button
+            type="button"
+            className="by-day-edit"
+            aria-label={`Edit ${label} planned total`}
+            onClick={open}
+          >
+            {/* pencil */}
+            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </>
       )}
     </div>
   )

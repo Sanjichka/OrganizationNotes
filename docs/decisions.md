@@ -36,30 +36,46 @@ Neither is in v1.
 
 ## D2 — Carry-over model and trigger
 
-**One weekly sweep to the backlog, triggered client-side on the first open of a
-new week.** Not a nightly cascade, and not a scheduled Supabase function.
+**A nightly cascade: Mon–Sat carry into the next day, Sunday empties into the
+backlog.** Triggered client-side on first open, once per day. Not a scheduled
+Supabase function.
 
-*Model (revised by the project owner, 2026-07-21).* The v0.1 draft carried each
-day's leftovers to the *next day* and only emptied Sunday into the backlog. The
-owner chose a simpler shape: at week's end, **everything still open across all
-seven days lands in the backlog** in one move, and the new week starts with empty
-days. A day you skip stays quietly on its day until the week turns, rather than
-climbing through the rest of the week. This trades the daily escalation pressure
-(see [D3](#d3--carry-over-placement)) for a clean weekly reset and a single, easy
-mental model: *the backlog is everything you didn't get to.*
+*Model (revised by the project owner twice; current since 2026-07-23).* The v0.1
+draft had this shape, the 2026-07-21 revision replaced it with one weekly sweep
+to the backlog, and the owner has now reverted to the daily cascade. The weekly
+sweep was simpler to state but it deferred everything: a day you skipped on
+Monday sat untouched all week, and nothing applied pressure until Sunday night,
+at which point five days of neglect arrived in the backlog at once. The cascade
+puts the leftovers in front of you the next morning instead, which is the whole
+point of a daily planner. See [D3](#d3--carry-over-placement) for what that
+escalation buys.
+
+The Sunday terminus is unchanged in spirit from both models: there is no eighth
+day, so Sunday's leftovers pool in the backlog and the new week starts clean.
 
 *Trigger.* The app has exactly one user. A midnight cron would serve people who
 need their data correct while they sleep — nobody is looking. What matters is that
 the board is correct *the moment the app is opened*, and a client-side check
 guarantees that by construction.
 
-It also sidesteps timezones. "End of week" means the user's local week; a server
-function would need the user's timezone stored, kept current, and correct across
-DST. The client already knows, so it passes its local `today` into the RPC.
+It also sidesteps timezones. "End of day" means the user's local midnight; a
+server function would need the user's timezone stored, kept current, and correct
+across DST. The client already knows, so it passes its local `today` into the RPC.
 
 The requirement this creates is [idempotency](data-model.md#4-carry-over) —
 guarded by `user_state.last_rollover_on`, applied in one transaction
-(`rollover_week`, `supabase/migrations/0004`).
+(`rollover_days`, `supabase/migrations/0007`, which supersedes `rollover_week`).
+Because the trigger is "on open" rather than "at midnight", the RPC replays every
+boundary missed since the last run: open the app on Thursday having last opened
+it on Monday and Monday's leftovers cascade through Tuesday and Wednesday to
+land on Thursday, exactly as three nightly runs would have left them.
+
+**Past a week away, the cascade stops pretending.** Buckets are weekday-keyed,
+not date-keyed, so after seven days the `mon` bucket cannot say whether it means
+this Monday or one five weeks ago, and a day-by-day replay would be false
+precision. A gap of seven days or more therefore flushes every open day task
+straight to the backlog — which is the cascade's fixed point anyway, since any
+7-day span crosses a Sunday.
 
 Revisit if the app becomes multi-user or multi-device-with-widgets.
 
@@ -67,21 +83,20 @@ Revisit if the app becomes multi-user or multi-device-with-widgets.
 
 ## D3 — Carry-over placement
 
-**Carried tasks land at the TOP of the backlog**, above whatever is already there,
-with their relative order preserved (day order, then position within the day).
+**Carried tasks land at the TOP of their destination**, above whatever is already
+there, with their relative order preserved.
 
-Now that carry-over is a [weekly sweep](#d2--carry-over-model-and-trigger) rather
-than a daily cascade, this is the whole of the placement question — there is no
-"next day" to place into. Top-of-backlog keeps the freshest leftovers in view when
-you sit down to plan the new week, so re-scheduling them onto a day is a short
-drag, not a scroll to the bottom of a growing pile.
+For a nightly carry that means the top of the *next day*, so an avoided task
+climbs and darkens each night — the app applies pressure exactly where pressure
+is due. For Sunday's carry, and for the week-away flush, the destination is the
+backlog, and top-of-backlog keeps the freshest leftovers in view when you sit
+down to re-plan rather than buried under a growing pile.
 
-*Superseded reasoning.* The v0.1 daily model placed carries at the top of the
-*next day* so an avoided task climbed and darkened each night — "the app applies
-pressure exactly where pressure is due." The weekly model gives that pressure up
-on purpose: nothing escalates mid-week, and everything unfinished simply pools in
-the backlog at week's end. If daily escalation is ever missed, this is the
-decision to reopen.
+*History.* The brief weekly-sweep model (2026-07-21 to 2026-07-23) gave the daily
+escalation up deliberately, on the grounds that nothing should escalate mid-week.
+In use it read as the board going slack: leftovers neither confronted you nor
+went anywhere until Sunday. Escalation is back, and it is the reason the daily
+model is worth its extra machinery.
 
 ---
 
@@ -369,12 +384,15 @@ fully-checked task contributes `n done / n total` either way — a task with
 subtasks is simply represented by its boxes, never double-counted alongside them.
 
 **One formula, everywhere.** `src/lib/completion.ts` is canonical: `taskUnits` /
-`tallyUnits` / `completionPct`. The header percentage (`Board.tsx`, over the day
-buckets) and the whole Review screen (`Stats.tsx` — ring, per-day bars, **and**
-the `done / planned / backlog` figures and per-day `done/total` labels) all count
-units, so no two numbers on the screen tell different stories. In keeping with the
-"derived, never stored" ethos there is **no new column** — units are computed at
-render time from the same `tasks` + `subtasks` rows.
+`tallyUnits`, and `weekReview` on top of them. The header percentage (`Board.tsx`)
+and the whole Review screen (`Stats.tsx` — ring, per-day bars, **and** the
+`done / planned / backlog` figures and per-day `done/total` labels) all read
+`weekReview`, so no two numbers on the screen tell different stories. Units are
+computed at render time from the same `tasks` + `subtasks` rows.
+
+*(Amended by [D13](#d13--the-review-counts-by-plan-not-by-bucket): `weekReview`
+groups those units by `planned_date` rather than by bucket, and applies any
+manual correction to the total. The unit model itself is unchanged.)*
 
 **Note the Week board still labels day headers by task** (`0/1 done`), not by unit
 — that header answers "how many of today's tasks are closed out", a different
@@ -383,15 +401,148 @@ percentage count units.
 
 ---
 
+## D13 — The review counts by plan, not by bucket
+
+*Accepted (project owner, 2026-07-23).* Reported as a bug: "Wednesday had 3 of 5
+done, Thursday was empty, and after midnight Wednesday reads 3/3 — which is not
+true, it is 3 of 5."
+
+It was true. The review derived each day's figure from the tasks **currently in
+that day's bucket**, so the moment [carry-over](#d2--carry-over-model-and-trigger)
+moved Wednesday's two open tasks to Thursday, Wednesday's denominator left with
+them. "Completed tasks never move" preserved the *numerator* — that is what
+`completed_at` is for — but nothing preserved the plan. Every day converged on
+100% by attrition, and the ring flattered you in exact proportion to how much you
+had skipped.
+
+**Every task records the day it was planned for.** `tasks.planned_date`, set on
+insert from `date`, and the review counts by it. Carry-over **never** rewrites it;
+a deliberate user move does, because dragging a task to Friday *is* replanning it
+for Friday. That one asymmetry is the whole mechanism.
+
+The consequence worth stating plainly: a carried task counts against the day it
+was **planned** for, not the day it now sits on. Wednesday reads 3/5 forever, and
+Thursday is not inflated by work it inherited. Thursday's figure answers "how
+much of what I planned for Thursday did I do", which is the only question that
+means anything.
+
+**The split, which is the same problem one level down.** A part-done checklist
+carried whole would drag its ticked boxes off the day that earned them. So it
+divides: the done subtasks stay with the original — which auto-completes, since
+every box remaining on it is ticked, exactly the rule [D9](#d9--subtasks-are-a-checklist-not-nested-tasks)
+already applies when you tick the last box by hand — and the open ones move to a
+new task of the same name. Being done, the remnant can never move again, which is
+precisely what pins the evidence to the day. The clone **inherits the original's
+`planned_date`** rather than defaulting to the day it lands in, for the reason
+above: those boxes were planned for Wednesday.
+
+**Only the denominator is editable.** The pencil on a day's row corrects its
+planned total and nothing else. The done count stays derived from `completed_at`,
+so the review can be corrected when the derived number is genuinely wrong — a
+task added Thursday that you only ever intended for Thursday, a plan you abandoned
+on purpose — but never flattered. An override lives in `day_plan_override`, keyed
+by plan date; deleting the row restores the derived figure. A corrected total is
+marked in the UI (dotted underline) so it never passes for derived.
+
+**Why a column and not a snapshot.** The alternative was writing each day's tally
+into a stats table at carry-over time. That stores a number the rows already
+imply, goes stale the moment anything is edited, and needs a second code path for
+the current (un-snapshotted) week. Provenance keeps the project's "derived, never
+stored" ethos: the figure is still computed at render time, from a column that
+records a *fact about the task* rather than a cached answer. The one genuinely
+un-derivable thing — a human saying "that day's plan was really four" — is the
+only thing that gets stored.
+
+**The known gap.** Tasks already swept to the backlog by the old weekly rollover
+have no recoverable plan date and are backfilled null, so they count toward no
+day. That history is gone; inventing a date for it would be worse than the gap.
+
+---
+
+## D14 — Next week is a filter, not a place
+
+*Accepted (project owner, 2026-07-23).* Asked for: a second planning board,
+"Next week", sitting beside Week. When the current week ends it becomes the Week,
+its predecessor's unfinished tasks go to the backlog, and Next week comes up
+empty.
+
+The obvious reading is that the week turning over is a **migration** — copy or
+move next week's rows onto the current board, then clear the staging area. That
+would be a second carry-over: a bulk write, on a schedule, needing its own
+idempotency guard, its own failure mode, and its own answer to "what if it runs
+while you are mid-drag". [D2](#d2--carry-over-model-and-trigger) already
+establishes how much care one of those costs.
+
+It is unnecessary. **A day-bucket task already carries a real calendar date** —
+not a weekday name, an actual `date`, and the schema's `backlog_has_no_date`
+check makes that an invariant rather than a convention. So the date alone says
+which week a task was planned into. Week and Next week are two filters over one
+table, and the boundary is not an event at all: the same rows simply start
+matching the other filter when the calendar moves. Nothing is written, so nothing
+can half-happen, so there is nothing to make idempotent.
+
+The three behaviours asked for all fall out:
+
+- **Next week becomes the Week.** Its tasks' dates are now this week's dates.
+- **Next week comes up empty.** Nothing is dated a fortnight out, because the UI
+  offers nowhere to put it.
+- **Unfinished work goes to the backlog.** This is not new behaviour either — it
+  is the ordinary Sunday cascade step, which has emptied Sunday into the backlog
+  since 0007. A week's leftovers reach Sunday by cascading nightly, and go over
+  the edge from there.
+
+**What did have to change: carry-over stops keying off the bucket.** `carry_bucket`
+moved every open task in bucket `sun`; with two weeks on the board that is now two
+different Sundays, and next week's plan would be swept into the backlog the moment
+this week ended. `carry_day` keys off the source **date**, which is unambiguous —
+and therefore cannot touch a future-dated task at all. Next week is protected by
+arithmetic rather than by a special case.
+
+That change earns something else. Being date-keyed, the cascade can no longer
+revisit a day it did not cross, so a task stranded on a stale date — left by the
+old weekly sweep, or dragged onto a day that has already passed — would sit there
+forever. So the replay is now followed by a sweep: **nothing open may be left on a
+day that has passed.** After a normal replay it finds nothing. It subsumes the old
+"away seven days" branch, which was the same operation with a different trigger.
+
+**The board shows a week, not a bucket.** Filtering by date has a consequence
+worth stating: completed tasks from previous weeks no longer appear on the board.
+They were showing up before — a done card from three weeks ago sat in Wednesday
+forever, because completed tasks never move and nothing filtered them out. They
+are still counted, by `planned_date`, wherever the review looks for them
+([D13](#d13--the-review-counts-by-plan-not-by-bucket)). The one exception is an
+**open** task dated outside both weeks: carry-over has failed it, so the board
+shows it on the current week rather than letting it become invisible.
+
+**Two reviews, because they answer different questions.** "Weekly review" keeps
+its current scope — this week, by plan date. "Overall review" covers everything on
+record. It ships blank: `planned_date` and `completed_at` already hold the entire
+history, so it needs no new data, only a decision about what an all-time figure
+should say — see *Still genuinely open* below, which has been asking exactly that.
+An empty page is more honest than a number nobody has defined.
+
+**Why not more than two weeks.** Two is what a weekly planner needs: somewhere to
+put a thing that is not for this week. A third would want week navigation, which
+[D1](#d1--app-shape) rules out, and the filter model would carry it for free
+anyway if that ever changes.
+
+---
+
 ## Still genuinely open
 
 Not blocking, but undecided:
 
+- **What the Overall review says.** The screen exists and is blank
+  ([D14](#d14--next-week-is-a-filter-not-a-place)). The data is all there —
+  `planned_date` and `completed_at` cover every week on record — but an all-time
+  completion percentage is a weak answer: it converges and stops moving. Likely
+  more useful: a trend across weeks, a best/worst week, a streak, which days of
+  the week you actually deliver on. Also unresolved is where history *starts*,
+  given the null-`planned_date` gap D13 records.
 - **Review metrics.** The mockup's base charts are built — completion ring,
   done/planned/backlog counts, per-day bars, all derived from the live task rows.
   What's still open is whether "carried over" and "dropped to backlog" deserve
-  first-class numbers, and whether the figures should span history rather than
-  just this week. The data supports computing both retroactively, so this can
+  first-class numbers. The data supports computing them retroactively, so this can
   wait until the review view has been used a few times.
 - **Dark mode.** No palette designed. See
   [`design-system.md`](design-system.md#9-known-gaps).

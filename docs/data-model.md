@@ -19,6 +19,7 @@ create table tasks (
                   check (length(btrim(title)) between 1 and 200),
   bucket        task_bucket not null,
   date          date,
+  planned_date  date,                       -- the day this was PLANNED for
   position      double precision not null,
 
   done          boolean not null default false,
@@ -52,6 +53,16 @@ The two check constraints are the important part. They make the impossible
 states — a backlog task carrying a date, a task marked done with no completion
 timestamp — unrepresentable rather than merely discouraged. The weekly review
 depends entirely on `completed_at` being trustworthy.
+
+`planned_date` is added by `supabase/migrations/0007`. It is the day a task was
+*planned* for, which after a night of carry-over is no longer the day it sits in.
+A `before insert` trigger defaults it to `date` (an explicit value wins, which is
+how the split clone inherits its original's plan); [carry-over](#4-carry-over)
+never touches it; a deliberate user move rewrites it, because a move is a replan.
+The weekly review counts by this column and nothing else — see
+[`decisions.md D13`](decisions.md#d13--the-review-counts-by-plan-not-by-bucket).
+It is nullable: a task born in the backlog was planned for no day, and rows that
+predate the column keep null if they had already been swept.
 
 `start_time` is added by `supabase/migrations/0005`, not the initial schema. It
 is pure display metadata — a `time`, never a `timestamptz`, because a task's day
@@ -150,9 +161,16 @@ Use this sort everywhere. Do not re-sort ad hoc in components.
 
 ## 4. Carry-over
 
-**One weekly sweep**, not a daily cascade. Runs client-side on the first open of a
-new week; the DB does the work in the `rollover_week` RPC
-(`supabase/migrations/0004`). See [`decisions.md`](decisions.md#d2--carry-over-trigger).
+**A nightly cascade.** Mon–Sat carry into the next day; Sunday empties into the
+backlog. Runs client-side on first open; the DB does the work in the
+`rollover_days` RPC (`supabase/migrations/0008`, which supersedes `rollover_week`
+from 0004 and `carry_bucket` from 0007). See
+[`decisions.md D2`](decisions.md#d2--carry-over-model-and-trigger).
+
+**Every step is keyed by date, never by bucket.** With two weeks on the board
+(§8), bucket `sun` names two different Sundays; the source date names one day.
+This is what keeps next week's plan out of the cascade's reach — a future date is
+never a source, so no special case is needed to protect it.
 
 **The invariant: it must be idempotent.** Running it twice in a row must be
 indistinguishable from running it once. Two devices, a refresh mid-run, a clock
@@ -160,24 +178,43 @@ that jumps — all of these will happen.
 
 Procedure (all of it inside the RPC, one transaction):
 
-1. Read `user_state.last_rollover_on`. If the week containing it is the current
-   week (or later), stop. On the first run ever, record today as the baseline and
-   sweep nothing — otherwise the current in-progress week would be dumped.
-2. Take every task in a **day bucket** (`mon`..`sun`) where `done = false`, in day
-   order then `position` order.
-3. Move the whole set to the **backlog** (`bucket = 'backlog'`, `date = null`),
-   preserving relative order, placed **above** the tasks already there (assign
-   positions below the backlog's current minimum).
-4. Leave completed tasks exactly where they are. They are the review's evidence.
+1. Read `user_state.last_rollover_on`. If it is today or later, stop. On the
+   first run ever, record today as the baseline and carry nothing — otherwise a
+   board that was never left overnight would be cascaded.
+2. For each day `D` from `last_rollover_on` up to yesterday, run one carry step
+   from `D` into `D + 1` — or into the backlog when `D` is a Sunday. Missed
+   nights replay in order, so opening on Thursday after a Monday leaves the board
+   exactly as three nightly runs would have. Skipped entirely if seven or more
+   days have elapsed: a task that has sat unmoved for eight days is not helped by
+   being walked forward eight times, and step 3 is where every one of those days
+   would land anyway (any 7-day span crosses a Sunday).
+3. Sweep: **nothing open may be left on a day that has already passed.** Every
+   remaining open day-bucket task dated before today goes straight to the backlog,
+   newest date first so the backlog reads oldest → newest. After a full replay
+   this finds nothing — the last step lands everything on today. It catches the
+   long absence skipped above, and tasks stranded on stale dates (by the old
+   weekly sweep, or by being dragged onto a day that has already passed), which a
+   date-keyed replay would never revisit.
+4. Each carry step, in `carry_day`:
+   - **Split part-done checklists first.** An open task with both ticked and
+     unticked subtasks is divided: a clone is inserted in the *source* bucket at
+     the original's position carrying the unticked subtasks (and inheriting the
+     original's `planned_date`, not the destination's), and the original — now
+     holding only ticked boxes — auto-completes, stamped with the latest
+     `completed_at` among them. The clone is then carried by the bulk move like
+     any other open task.
+   - **Move every still-open task** to the destination, preserving relative order,
+     placed **above** what is already there (positions below the destination's
+     current minimum). `date` follows the destination; `planned_date` does not.
 5. Set `last_rollover_on = today`.
 
-"Today" is passed in by the client (`p_today`) so the week boundary follows the
-user's **local** calendar, not the server's UTC clock. `rollover_week` is
-`SECURITY INVOKER`, so RLS still scopes every row to the caller.
+Completed tasks are never moved by any of this. They are the review's evidence,
+and the split exists precisely so a half-finished checklist cannot smuggle its
+evidence off the day that earned it.
 
-The board groups tasks by `bucket`, never by date, so last week's leftovers keep
-showing under their days until this sweep moves them out. That is the sweep's whole
-job: at week's end the days empty into the backlog and the new week starts clean.
+"Today" is passed in by the client (`p_today`) so the day boundary follows the
+user's **local** midnight, not the server's UTC clock. Both `rollover_days` and
+`carry_day` are `SECURITY INVOKER`, so RLS still scopes every row to the caller.
 
 ---
 
@@ -250,4 +287,72 @@ of the task invariants extend to them.
 
 **Auto-complete** (a client rule, not a constraint): checking the last open box
 completes the parent, and unchecking a box — or adding one — on a completed
-parent reopens it, all via the same completion path a manual toggle uses.
+parent reopens it, all via the same completion path a manual toggle uses. The
+[carry-over split](#4-carry-over) leans on the same rule from the server side: a
+parent left holding only ticked boxes is completed then and there.
+
+---
+
+## 7. Plan overrides
+
+One row per corrected day. Added by `supabase/migrations/0007`.
+
+```sql
+create table day_plan_override (
+  user_id        uuid not null references auth.users(id) on delete cascade,
+  plan_date      date not null,
+  planned_total  integer not null check (planned_total >= 0),
+  updated_at     timestamptz not null default now(),
+  primary key (user_id, plan_date)
+);
+```
+
+**Only the denominator is overridable.** The review's done count stays derived
+from `completed_at`, so a day's figure can be corrected but never flattered —
+see [`decisions.md D13`](decisions.md#d13--the-review-counts-by-plan-not-by-bucket).
+
+An absent row means "use the derived total", so clearing a correction is a delete
+rather than a sentinel value. The percentage is clamped to 100 at render time: a
+user may set a total below what they actually finished, and the ring should not
+overflow when they do.
+
+RLS and the `touch_updated_at` trigger mirror `tasks`.
+
+---
+
+## 8. Two weeks
+
+The board plans **this week and next**, as two tabs. Nothing in the schema knows
+about it.
+
+A day-bucket task always carries a real calendar `date` — the
+`backlog_has_no_date` check makes that an invariant, not a convention — so the
+date alone says which week the task was planned into. Week and Next week are two
+filters over the same table:
+
+| Board | Shows |
+|---|---|
+| Week | day tasks dated in the current Mon–Sun, plus the backlog |
+| Next week | day tasks dated in the following Mon–Sun, plus the backlog |
+
+The backlog is week-agnostic and appears on both; dragging out of it is how next
+week gets planned. Adding to Tuesday on the next-week board dates the task next
+Tuesday, and `planned_date` defaults from `date` as always, so the task counts
+toward next week's review when that week arrives.
+
+**The week turning over writes nothing.** No row is copied, moved or cleared —
+next week's tasks simply start matching the current-week filter, and the week
+after that is empty because nothing is dated a fortnight out. There is no second
+carry-over and therefore no second idempotency guard. The unfinished tasks of the
+week just ended reach the backlog by the ordinary Sunday cascade step, not by any
+week-boundary logic. See
+[`decisions.md D14`](decisions.md#d14--next-week-is-a-filter-not-a-place).
+
+**Two consequences of filtering by date:**
+
+- Completed tasks from earlier weeks are no longer on the board. They never move
+  (they are the review's evidence) and previously accumulated in their day bucket
+  indefinitely. The review still finds them by `planned_date`.
+- An **open** task dated outside both weeks is shown on the current week anyway.
+  Carry-over has failed it, and the alternative is a task that exists but cannot
+  be seen. The [sweep](#4-carry-over) is what normally prevents this.

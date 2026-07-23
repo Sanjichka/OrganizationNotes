@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import { Auth } from './components/Auth'
 import { Board } from './components/Board'
 import { Stats } from './components/Stats'
+import { OverallReview } from './components/OverallReview'
 import { Profile } from './components/Profile'
 import { type Page } from './components/Tabs'
 
@@ -11,9 +12,9 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState<Page>('tasks')
-  // The profile is an overlay over whichever view you were on, not a third tab —
-  // closing it returns you to Week or Review, wherever you opened it from.
+  const [page, setPage] = useState<Page>('week')
+  // The profile is an overlay over whichever view you were on, not another tab —
+  // closing it returns you to the view you opened it from.
   const [showProfile, setShowProfile] = useState(false)
 
   useEffect(() => {
@@ -75,15 +76,26 @@ export function App() {
           onClose={() => setShowProfile(false)}
           onUserChange={onUserChange}
         />
-      ) : page === 'tasks' ? (
+      ) : page === 'week' || page === 'next' ? (
+        // One Board serves both weeks, and deliberately stays mounted across the
+        // switch: it already holds every task, so flipping between them is a
+        // re-filter rather than a reload.
         <Board
           session={session}
+          weekOffset={page === 'next' ? 1 : 0}
+          page={page}
+          onChange={setPage}
+          onOpenProfile={onOpenProfile}
+        />
+      ) : page === 'review' ? (
+        <Stats
+          user={session.user}
           page={page}
           onChange={setPage}
           onOpenProfile={onOpenProfile}
         />
       ) : (
-        <Stats
+        <OverallReview
           user={session.user}
           page={page}
           onChange={setPage}

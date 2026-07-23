@@ -12,11 +12,12 @@ review.
 
 ## 1. Scope of v1
 
-**In:** 7 fixed days (Mon–Sun) + backlog, add/edit/delete tasks,
-complete/uncomplete, drag to reorder within a day, drag between days and to/from
-backlog, automatic carry-over of undone tasks, priority-shaded task cards, today
-highlighted, weekly review view, Supabase persistence, read-only offline,
-optional per-task duration, per-task subtask checklists.
+**In:** 7 fixed days (Mon–Sun) + backlog, a second board for **next week**,
+add/edit/delete tasks, complete/uncomplete, drag to reorder within a day, drag
+between days and to/from backlog, automatic carry-over of undone tasks,
+priority-shaded task cards, today highlighted, weekly review view, Supabase
+persistence, read-only offline, optional per-task duration, per-task subtask
+checklists.
 
 **Out (v1):** notes, recurring tasks, reminders/notifications, calendar
 integration, sharing, desktop layout, tag UI.
@@ -33,9 +34,22 @@ calendar sync. Columns exist in the schema; no UI ships in v1.
 
 ### Week
 
-Fixed **Monday–Sunday**. Advances automatically with the real date. No manual
-week navigation in v1 — backwards navigation into past weeks belongs to the
-review view. The current day is visually highlighted.
+Fixed **Monday–Sunday**. Advances automatically with the real date. The current
+day is visually highlighted.
+
+**Two weeks are plannable: this one and the next**, as two tabs over the same
+seven days. Next week is where a task goes when it is not for this week. It has
+no "today" to highlight, and it shares the backlog — dragging out of the backlog
+is how it gets planned.
+
+When the week ends, next week *becomes* this week and a fresh empty one takes its
+place. Nothing is moved to make that happen: a task carries the calendar date it
+was planned for, so the tabs are two filters over the same data and the boundary
+is just the calendar advancing. The week just ended leaves its unfinished tasks in
+the backlog — which is the ordinary Sunday carry-over, not a separate rule. See
+[`decisions.md D14`](decisions.md#d14--next-week-is-a-filter-not-a-place).
+
+No navigation beyond those two. Past weeks belong to the review.
 
 ### Task
 
@@ -101,38 +115,64 @@ Drag must be touch-native: long-press to lift, auto-scroll at screen edges.
 - Completed tasks are visually muted rather than participating in the priority
   shade scale.
 
-### Carry-over (weekly)
+### Carry-over (nightly)
 
-- At the end of the week, **every** task still open across **all seven days**
-  moves to the **backlog** for the next week — one sweep, not a nightly cascade.
-  Days therefore start each Monday empty; the backlog holds whatever went
-  unfinished. *(This replaces the v0.1 draft's daily model — reasoning in
-  [`decisions.md`](decisions.md#d2--carry-over-trigger).)*
-- Carried tasks keep their relative order and land **above** the existing backlog,
-  so the freshest leftovers are the first thing you see when re-planning.
+- At the end of each day Mon–Sat, whatever is still open moves to the **next
+  day**. At the end of **Sunday** there is no next day, so the leftovers go to
+  the **backlog** instead.
+- Carried tasks keep their relative order and land **above** what is already in
+  the destination, so an avoided task climbs and darkens each night.
 - Completed tasks never move. They stay on the day they were completed, which is
   what makes the weekly review meaningful.
-- Carry-over runs client-side on the first open of a new **week**, and is
-  **idempotent** — running it twice must not move anything twice. See
-  [`decisions.md`](decisions.md#d2--carry-over-trigger).
+- **A part-done checklist splits rather than moving.** A task whose subtasks are
+  partly ticked leaves the ticked ones on the day that earned them — the parent
+  auto-completes there, since all its remaining boxes are done — and a new task
+  of the same name carries the unticked ones forward.
+- **Next week is never touched.** Each carry step names a source *date*, and next
+  week's dates are still in the future. It sits untouched until it becomes this
+  week.
+- **Nothing open is left on a day that has passed.** Whatever the cascade cannot
+  reach — a long absence, a task dragged onto a day already gone — is swept to the
+  backlog on the next open.
+- Carry-over runs client-side on first open, once per day, and is **idempotent**.
+  See [`decisions.md`](decisions.md#d2--carry-over-model-and-trigger).
 
 ### Backlog
 
-A permanent eighth bucket. Receives end-of-week leftovers. Tasks can be dragged
-out onto any day. Nothing leaves the backlog automatically.
+A permanent eighth bucket, shared by both weeks. Receives Sunday's leftovers, and
+so, at the end of a week, everything that week did not finish. Tasks can be
+dragged out onto any day of either week. Nothing leaves the backlog automatically.
 
 ### Weekly review
 
-Shows, for a week: tasks completed vs. carried over vs. dropped to backlog, per
-day and in total.
+Shows, for a week: how much of each day's plan was completed, per day and in
+total.
 
-Exact metrics remain deliberately undefined. The data model retains every task
-with its `date` and `completed_at`, so any reasonable summary can be computed
-retroactively — nothing needs deciding now to avoid painting into a corner.
+**A day is counted by what was planned for it, not by what is still sitting in
+it.** Once Wednesday's leftovers cascade into Thursday, counting the Wednesday
+bucket would read 3/3 for a day that was really 3 of 5 — the numerator survives
+in `completed_at`, but the denominator walks away. So every task records the day
+it was *planned* for (`planned_date`), which carry-over never rewrites. See
+[`decisions.md D13`](decisions.md#d13--the-review-counts-by-plan-not-by-bucket).
+
+Any day's planned total can be **corrected by hand** (the pencil on its row).
+Only the total — the done count stays derived from `completed_at`, so the review
+can be corrected but never flattered.
 
 The mockup's review view shows completion percentage, done/planned/backlog
 counts, and a per-day completion bar. Treat that as the v1 starting point, not a
 ceiling.
+
+### Overall review
+
+A second review covering **everything on record**, not just the current week —
+the counterpart to the weekly one, which resets every Monday.
+
+It ships **blank**. `planned_date` and `completed_at` already hold the whole
+history, so it needs no new data; what it needs is a decision about what an
+all-time figure should say, since a lifetime completion percentage converges and
+then stops moving. Candidates are listed under *Still genuinely open* in
+[`decisions.md`](decisions.md#still-genuinely-open).
 
 ---
 
