@@ -180,7 +180,17 @@ export function Board({
     // must not block the board, so we swallow it and load whatever we can read.
     runDailyRollover()
       .catch(() => 0)
-      .then(() => Promise.all([fetchTasks(), fetchSubtasks(), fetchPlanOverrides()]))
+      // Overrides are a correction layer, not data: without them every figure is
+      // still derived correctly, just uncorrected. So a failure there degrades to
+      // an empty map rather than joining the Promise.all rejection and taking the
+      // task list down with it — which is exactly what a missing GRANT did (0009).
+      .then(() =>
+        Promise.all([
+          fetchTasks(),
+          fetchSubtasks(),
+          fetchPlanOverrides().catch(() => ({})),
+        ]),
+      )
       .then(([t, s, o]) => {
         setTasks(t)
         setSubtasks(s)

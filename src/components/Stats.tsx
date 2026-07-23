@@ -49,7 +49,14 @@ export function Stats({
   }, [])
 
   useEffect(() => {
-    Promise.all([fetchTasks(), fetchSubtasks(), fetchPlanOverrides()])
+    // Overrides degrade to an empty map: a day's figure is then the derived one,
+    // which is right, only uncorrected. Losing the whole review over it would not
+    // be — see Board's copy of this and migration 0009.
+    Promise.all([
+      fetchTasks(),
+      fetchSubtasks(),
+      fetchPlanOverrides().catch(() => ({})),
+    ])
       .then(([t, s, o]) => {
         setTasks(t)
         setSubtasks(s)

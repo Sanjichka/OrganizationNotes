@@ -85,6 +85,11 @@ not reintroduce a light/dark text flip. Both were measured failures; see
 
 **Neutrals are warm (hue 95), not grey.** `#888` will look wrong next to them.
 
+**A new table needs a GRANT, not just an RLS policy.** RLS sits on top of table
+privileges — without `grant … to authenticated` every query fails with
+*permission denied* before the policy is consulted. 0007 shipped
+`day_plan_override` without one and blanked the board; 0009 is the fix.
+
 **The mockup is a mockup.** Its `Component` class is illustrative, not code to
 port. It holds state in memory with no persistence, dates, or auth.
 

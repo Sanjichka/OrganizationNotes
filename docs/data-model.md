@@ -316,7 +316,10 @@ rather than a sentinel value. The percentage is clamped to 100 at render time: a
 user may set a total below what they actually finished, and the ring should not
 overflow when they do.
 
-RLS and the `touch_updated_at` trigger mirror `tasks`.
+RLS and the `touch_updated_at` trigger mirror `tasks` — **and so does the
+grant**, which 0007 omitted and `supabase/migrations/0009` supplies. A policy
+without `grant select, insert, update, delete … to authenticated` fails with
+*permission denied* before the policy is ever consulted; see §2.
 
 ---
 
