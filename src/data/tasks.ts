@@ -148,8 +148,9 @@ export async function addSubtask(args: {
   return data as Subtask
 }
 
-// Done also stamps completed_at, mirroring setDone. A subtask never feeds the
-// weekly review, but the timestamp survives if it is later promoted to a task.
+// Done also stamps completed_at, mirroring setDone. A subtask's done state feeds
+// the weekly review as its own unit (decisions.md D12); the timestamp survives if
+// it is later promoted to a task.
 export async function setSubtaskDone(id: string, done: boolean): Promise<Subtask> {
   const patch = done
     ? { done: true, completed_at: new Date().toISOString() }

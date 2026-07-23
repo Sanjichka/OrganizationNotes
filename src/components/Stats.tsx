@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import type { Bucket, Task } from '../lib/types'
+import type { Bucket, Subtask, Task } from '../lib/types'
 import { DAY_BUCKETS, BUCKET_LABEL } from '../lib/buckets'
 import { sectionShade } from '../lib/shading'
-import { fetchTasks } from '../data/tasks'
+import { tallyUnits, groupSubtasks } from '../lib/completion'
+import { fetchTasks, fetchSubtasks } from '../data/tasks'
 import { AppHeader } from './AppHeader'
 import { type Page } from './Tabs'
 
@@ -13,8 +14,11 @@ const RING_C = 2 * Math.PI * RING_R
 
 interface DayStat {
   bucket: Bucket
+  // Flat units: subtasks count individually, a childless task counts as one.
+  // See completion.ts / decisions.md D12.
   done: number
   total: number
+  pct: number
 }
 
 /**
@@ -35,29 +39,39 @@ export function Stats({
   onOpenProfile: () => void
 }) {
   const [tasks, setTasks] = useState<Task[] | null>(null)
+  const [subtasks, setSubtasks] = useState<Subtask[]>([])
 
   useEffect(() => {
-    fetchTasks()
-      .then(setTasks)
+    Promise.all([fetchTasks(), fetchSubtasks()])
+      .then(([t, s]) => {
+        setTasks(t)
+        setSubtasks(s)
+      })
       .catch(() => setTasks([]))
   }, [])
 
   const stats = useMemo(() => {
     const rows = tasks ?? []
+    const subsByTask = groupSubtasks(subtasks)
     const days: DayStat[] = DAY_BUCKETS.map((bucket) => {
       const inBucket = rows.filter((t) => t.bucket === bucket)
+      const { done, total } = tallyUnits(inBucket, subsByTask)
       return {
         bucket,
-        done: inBucket.filter((t) => t.done).length,
-        total: inBucket.length,
+        done,
+        total,
+        pct: total ? Math.round((done / total) * 100) : 0,
       }
     })
     const planned = days.reduce((n, d) => n + d.total, 0)
     const doneTotal = days.reduce((n, d) => n + d.done, 0)
-    const backlog = rows.filter((t) => t.bucket === 'backlog').length
+    const backlog = tallyUnits(
+      rows.filter((t) => t.bucket === 'backlog'),
+      subsByTask,
+    ).total
     const weekPct = planned ? Math.round((doneTotal / planned) * 100) : 0
     return { days, planned, doneTotal, backlog, weekPct }
-  }, [tasks])
+  }, [tasks, subtasks])
 
   const loading = tasks === null
 
@@ -119,7 +133,7 @@ export function Stats({
           <div className="by-day">
             {stats.days.map((d) => {
               const accent = sectionShade(d.bucket).accent
-              const pct = d.total ? Math.round((d.done / d.total) * 100) : 0
+              const pct = d.pct
               return (
                 <div key={d.bucket} className="by-day-row">
                   <span

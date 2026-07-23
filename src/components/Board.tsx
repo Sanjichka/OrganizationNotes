@@ -19,6 +19,7 @@ import { ALL_BUCKETS, weekDates, todayBucket } from '../lib/buckets'
 import { arrayMove } from '@dnd-kit/sortable'
 import { appendPosition, between, canonicalSort } from '../lib/position'
 import { openShade } from '../lib/shading'
+import { completionPct } from '../lib/completion'
 import {
   fetchTasks,
   runWeeklyRollover,
@@ -173,13 +174,10 @@ export function Board({
     return map
   }, [subtasks])
 
-  const weekPct = useMemo(() => {
-    const dayTasks = tasks.filter((t) => t.bucket !== 'backlog')
-    if (dayTasks.length === 0) return 0
-    return Math.round(
-      (dayTasks.filter((t) => t.done).length / dayTasks.length) * 100,
-    )
-  }, [tasks])
+  const weekPct = useMemo(
+    () => completionPct(tasks.filter((t) => t.bucket !== 'backlog'), subtasksByTask),
+    [tasks, subtasksByTask],
+  )
 
   function upsertLocal(updated: Task) {
     setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))

@@ -334,14 +334,52 @@ bullets D9 wrote into [`data-model.md §6`](data-model.md#6-subtasks).
 
 **What still holds.** A subtask still has **no bucket, date or shading** — it
 follows its parent by `task_id`, so carry-over and the colour ramp are untouched.
-The weekly review stays **tasks-only**; `completed_at` on a subtask exists solely
-so a promoted subtask keeps its timestamp and so the done-toggle mirrors a task's.
 Subtasks are still shown in plain `position asc` (no done/`completed_at` split).
+(The "review stays tasks-only" line here is superseded by [D12](#d12--the-review-weights-tasks-by-their-subtasks);
+`completed_at` on a subtask still earns its keep for the promotion round-trip.)
 
 **Guards (the drag refuses; the card snaps back, no error).** A **completed** task
 cannot nest — that would move a completed task and drop the timestamp the review
 runs on ("completed tasks never move"); uncomplete it first. A task that **already
 has subtasks** cannot nest either — one level only, no grandchildren.
+
+---
+
+## D12 — The review counts subtasks as flat units
+
+*Accepted.* Revises the "review stays tasks-only" line in
+[D11](#d11--subtasks-gain-task-parity-and-drag-conversion) at the project owner's
+request. Subtasks now feed the weekly completion figure as **units in their own
+right**, each weighted the same as a standalone task.
+
+We briefly tried a *weighted* model (each top-level task an equal slice, subtasks
+splitting their parent's slice — so three tasks, one with three subtasks, read
+33% / 33% / 11%·11%·11%). On real data it surprised: a day of one task at 1/3 of
+its checklist barely moved the needle, and the ring's 83% didn't square with the
+plain "6 of 8 boxes ticked" the owner was counting in their head. So it was
+dropped in favour of the simpler unit model.
+
+**Every subtask is one unit; a childless task is one unit.** The figure is just
+`doneUnits / totalUnits`. Three tasks, one carrying three subtasks, is five units,
+and completing a whole task or ticking one subtask move the needle equally
+(6/8 = 75%, not a weighted 83%).
+
+**This stays consistent with auto-complete.** All boxes done ⇒ parent done, so a
+fully-checked task contributes `n done / n total` either way — a task with
+subtasks is simply represented by its boxes, never double-counted alongside them.
+
+**One formula, everywhere.** `src/lib/completion.ts` is canonical: `taskUnits` /
+`tallyUnits` / `completionPct`. The header percentage (`Board.tsx`, over the day
+buckets) and the whole Review screen (`Stats.tsx` — ring, per-day bars, **and**
+the `done / planned / backlog` figures and per-day `done/total` labels) all count
+units, so no two numbers on the screen tell different stories. In keeping with the
+"derived, never stored" ethos there is **no new column** — units are computed at
+render time from the same `tasks` + `subtasks` rows.
+
+**Note the Week board still labels day headers by task** (`0/1 done`), not by unit
+— that header answers "how many of today's tasks are closed out", a different
+question from the review's progress. Only the review screen and the header
+percentage count units.
 
 ---
 

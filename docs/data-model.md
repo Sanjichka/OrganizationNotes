@@ -234,8 +234,10 @@ The design lives in the shape of the table:
   cleanup.
 - **`duration_min`, `start_time`, `completed_at`** mirror `tasks` exactly (D11), so
   dragging a task into a subtask — and back out — loses nothing. `completed_at` is
-  set on the done-toggle just like a task's, but a subtask **still never feeds the
-  weekly review**; the column exists only so a promoted subtask keeps its stamp.
+  set on the done-toggle just like a task's. A subtask's `done` **counts as its own
+  unit in the weekly review** (D12) — a task with subtasks is represented by its
+  boxes rather than its own flag — while `completed_at` also lets a promoted
+  subtask keep its stamp.
 - **`position` is fractional**, exactly as for tasks (§3) — scoped per parent —
   and reuses the same helpers. Subtasks are shown in plain `position asc` order;
   the task canonical sort does not apply to them (done ones stay in place, struck
