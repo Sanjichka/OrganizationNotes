@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import type { Bucket, DayPlanOverride, Subtask, Task } from '../lib/types'
 import { appendPosition } from '../lib/position'
-import { todayISODate } from '../lib/buckets'
+import { isCurrentWeek, todayISODate } from '../lib/buckets'
 
 // All queries rely on RLS to scope rows to the current user, so user_id is only
 // needed on insert.
@@ -144,11 +144,22 @@ export async function fetchPlanOverrides(): Promise<Record<string, number>> {
   return map
 }
 
+// The pencil corrects the week you are living in; a week that has closed is a
+// record, not a draft (decisions.md D13). The UI drops the pencil for a past
+// week, but a tab left open across Sunday midnight is still rendering last
+// week's rows, so the write is refused here rather than trusted to the view.
+function assertWeekOpen(planDate: string): void {
+  if (!isCurrentWeek(planDate)) {
+    throw new Error('That week has closed — its figures can no longer be edited.')
+  }
+}
+
 export async function setPlanOverride(
   userId: string,
   planDate: string,
   plannedTotal: number,
 ): Promise<void> {
+  assertWeekOpen(planDate)
   const { error } = await supabase
     .from('day_plan_override')
     .upsert(
@@ -160,6 +171,7 @@ export async function setPlanOverride(
 
 // Drop the correction and fall back to the derived total.
 export async function clearPlanOverride(planDate: string): Promise<void> {
+  assertWeekOpen(planDate)
   const { error } = await supabase
     .from('day_plan_override')
     .delete()

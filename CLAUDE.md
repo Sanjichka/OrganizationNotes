@@ -47,6 +47,12 @@ never rewrite it — a deliberate user move must. Counting by bucket is the bug
 this column exists to fix: Wednesday reads 3/3 the morning after being 3 of 5.
 See [`decisions.md D13`](docs/decisions.md#d13--the-review-counts-by-plan-not-by-bucket).
 
+**A closed week's figures are read-only.** The pencil corrects a day's planned
+total only while that day's week is the current one — enforced at the write in
+`setPlanOverride`/`clearPlanOverride`, not just hidden in the view. The Overall
+review is read-only outright: it moves with the rows, but nothing on it is
+editable. See [`decisions.md D13`](docs/decisions.md#d13--the-review-counts-by-plan-not-by-bucket).
+
 **Carry-over is idempotent.** Guarded by `user_state.last_rollover_on`, applied in
 one transaction. It will get run twice; that must be a no-op.
 

@@ -177,21 +177,45 @@ export function Board({
     setCollapsed(new Set(ALL_BUCKETS.filter((b) => b !== today)))
     // Nightly carry-over runs first so the fetch below reflects any cascade. It
     // is idempotent, and a failure (e.g. offline — writes don't run offline)
-    // must not block the board, so we swallow it and load whatever we can read.
+    // must not block the board, so we catch it and load whatever we can read.
+    // But we do NOT swallow it silently: a cascade that errors (a missing
+    // migration, a dropped grant) fails invisibly — the board just renders an
+    // uncascaded yesterday — so the error is logged to make that visible.
     runDailyRollover()
-      .catch(() => 0)
-      // Overrides are a correction layer, not data: without them every figure is
-      // still derived correctly, just uncorrected. So a failure there degrades to
-      // an empty map rather than joining the Promise.all rejection and taking the
-      // task list down with it — which is exactly what a missing GRANT did (0009).
-      .then(() =>
-        Promise.all([
+      .catch((e) => {
+        console.error('[orgo] nightly carry-over failed — board is uncascaded:', e)
+        return 0
+      })
+      // TEMP DEBUG: how many tasks did this run carry, and what "today" is it
+      // comparing against? A carried count of 0 with an open Thursday task means
+      // the cascade doesn't consider that task due.
+      .then((carried) => {
+        console.log('[orgo] carry-over run complete. tasks carried:', carried)
+        // Overrides are a correction layer, not data: without them every figure is
+        // still derived correctly, just uncorrected. So a failure there degrades to
+        // an empty map rather than joining the Promise.all rejection and taking the
+        // task list down with it — which is exactly what a missing GRANT did (0009).
+        return Promise.all([
           fetchTasks(),
           fetchSubtasks(),
           fetchPlanOverrides().catch(() => ({})),
-        ]),
-      )
+        ])
+      })
       .then(([t, s, o]) => {
+        // TEMP DEBUG: the real stored fields for every open, non-backlog task.
+        // `bucket` is where the card is DRAWN; `date` is what carry-over reads.
+        // If they disagree for H4H, that is the bug.
+        console.table(
+          (t as Task[])
+            .filter((x) => !x.done && x.bucket !== 'backlog')
+            .map((x) => ({
+              title: x.title,
+              bucket: x.bucket,
+              date: x.date,
+              planned_date: x.planned_date,
+              done: x.done,
+            })),
+        )
         setTasks(t)
         setSubtasks(s)
         setOverrides(o)
@@ -741,6 +765,7 @@ export function Board({
               tasks={byBucket[b]}
               subtasksByTask={subtasksByTask}
               isToday={b === todayOnBoard}
+              dayNum={dates[b] ? Number((dates[b] as string).slice(8)) : null}
               collapsed={collapsed.has(b)}
               onToggleCollapse={toggleCollapse}
               onToggleTask={handleToggle}

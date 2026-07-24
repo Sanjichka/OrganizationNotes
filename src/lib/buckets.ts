@@ -96,6 +96,18 @@ export function weekDates(ref = new Date()): Record<Bucket, string | null> {
   return out
 }
 
+/**
+ * Whether `date` (YYYY-MM-DD) falls in the week containing `ref`.
+ *
+ * ISO dates compare correctly as strings, so this is a range test against the
+ * week's Monday and Sunday. Used to decide what is still open to correction: a
+ * closed week's figures are a record, not a draft (decisions.md D13).
+ */
+export function isCurrentWeek(date: string, ref = new Date()): boolean {
+  const week = weekDates(ref)
+  return date >= (week.mon as string) && date <= (week.sun as string)
+}
+
 /** The day bucket that is "today", or null if outside the current week view. */
 export function todayBucket(ref = new Date()): Bucket {
   return DAY_BUCKETS[isoDay(ref)]

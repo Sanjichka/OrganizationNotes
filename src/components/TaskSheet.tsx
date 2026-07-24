@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { Bucket } from '../lib/types'
 import { BUCKET_LABEL } from '../lib/buckets'
 import { sectionShade } from '../lib/shading'
-import { DURATION_PRESETS, formatDuration } from '../lib/duration'
+import {
+  CUSTOM_HOURS,
+  CUSTOM_MINUTES,
+  DURATION_PRESETS,
+  formatDuration,
+  splitDuration,
+} from '../lib/duration'
 
 // What the sheet emits on submit. Duration and start time are both optional and
 // independent (docs/decisions.md D6, D10); null means "not set / cleared".
@@ -109,6 +115,20 @@ export function TaskSheet({
     durationMin === (initialDuration ?? null) &&
     normalizedStart === (initialStart ?? null)
 
+  // The picker reads straight off durationMin — no second copy of the number to
+  // drift. An existing off-step value (a 47m task from before the picker) keeps
+  // its own minute option so opening the sheet can't silently round it.
+  const custom = splitDuration(durationMin)
+  const minuteOptions = CUSTOM_MINUTES.includes(custom.m)
+    ? CUSTOM_MINUTES
+    : [...CUSTOM_MINUTES, custom.m].sort((a, b) => a - b)
+
+  // 0h 00m means "no duration", which is the same as never having set one.
+  function setCustomParts(h: number, m: number) {
+    const total = h * 60 + m
+    setDurationMin(total > 0 ? total : null)
+  }
+
   // Tapping a preset toggles it; the custom field yields to it.
   function pickPreset(min: number) {
     setCustomOpen(false)
@@ -149,7 +169,7 @@ export function TaskSheet({
       onClick={onCancel}
     >
       <form
-        className="sheet sheet-tinted"
+        className={`sheet sheet-tinted${keyboardInset > 0 ? ' sheet-kb' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={
@@ -214,27 +234,46 @@ export function TaskSheet({
             >
               Custom
             </button>
-            {customOpen && (
-              <span className="custom-min" style={{ color: shade.label }}>
-                <input
-                  className="input custom-min-input"
-                  style={{ borderColor: shade.accent, color: shade.label }}
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={1440}
-                  value={durationMin ?? ''}
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value, 10)
-                    setDurationMin(Number.isFinite(n) && n > 0 ? n : null)
-                  }}
-                  placeholder="min"
-                  aria-label="Custom duration in minutes"
-                />
-                min
-              </span>
-            )}
           </div>
+          {customOpen && (
+            /* Hours and minutes as two selects: "4h 30m" is how the duration is
+               thought of, and a phone renders a select as a scroll wheel, so
+               nobody has to convert it to 270. */
+            <div className="dur-picker">
+              <label className="dur-part" style={{ color: shade.label }}>
+                <select
+                  className="input dur-select"
+                  style={{ borderColor: shade.accent, color: shade.label }}
+                  value={custom.h}
+                  onChange={(e) => setCustomParts(Number(e.target.value), custom.m)}
+                  aria-label="Duration, hours"
+                >
+                  {CUSTOM_HOURS.map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
+                  ))}
+                </select>
+                h
+              </label>
+              <label className="dur-part" style={{ color: shade.label }}>
+                <select
+                  className="input dur-select"
+                  style={{ borderColor: shade.accent, color: shade.label }}
+                  value={custom.m}
+                  onChange={(e) => setCustomParts(custom.h, Number(e.target.value))}
+                  aria-label="Duration, minutes"
+                >
+                  {minuteOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {String(m).padStart(2, '0')}
+                    </option>
+                  ))}
+                </select>
+                m
+              </label>
+            </div>
+          )}
         </div>
 
         {/* When — optional clock time of day. */}

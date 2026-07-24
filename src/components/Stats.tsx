@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import type { Subtask, Task } from '../lib/types'
-import { DAY_BUCKETS, BUCKET_LABEL, weekDates } from '../lib/buckets'
+import {
+  DAY_BUCKETS,
+  BUCKET_LABEL,
+  isCurrentWeek,
+  weekDates,
+} from '../lib/buckets'
 import { sectionShade } from '../lib/shading'
 import { tallyUnits, groupSubtasks, weekReview, type DayUnits } from '../lib/completion'
 import {
@@ -25,7 +30,8 @@ const RING_C = 2 * Math.PI * RING_R
  * Days are counted by `planned_date`, not by the bucket a task now sits in, so
  * a day keeps its denominator after the nightly cascade moves its leftovers on
  * (decisions.md D13). The planned total of any day can be corrected by hand via
- * the pencil; the done count cannot, because it is evidence.
+ * the pencil; the done count cannot, because it is evidence. And the pencil goes
+ * with the week: once a week has closed, its figures are read-only.
  */
 export function Stats({
   user,
@@ -166,6 +172,11 @@ export function Stats({
                 day={d}
                 label={BUCKET_LABEL[DAY_BUCKETS[i]].slice(0, 3)}
                 accent={sectionShade(DAY_BUCKETS[i]).accent}
+                // Normally every row here is this week's, so every row is
+                // editable. It stops being true for a session left open across
+                // Sunday midnight, which is still rendering the week it opened
+                // in — and that week is now closed.
+                editable={isCurrentWeek(d.date)}
                 onCommit={(raw) => commitOverride(d.date, raw)}
               />
             ))}
@@ -180,16 +191,22 @@ export function Stats({
  * One day's bar. The count doubles as the edit affordance: tapping the pencil
  * swaps the planned total for a number field. Blur or Enter commits, Escape
  * abandons, and an empty field restores the derived figure.
+ *
+ * A row from a closed week keeps everything but the pencil — the figures still
+ * read the same, they just stop being a draft. A spacer holds the pencil's
+ * place so the bars still end on one line.
  */
 function DayRow({
   day,
   label,
   accent,
+  editable,
   onCommit,
 }: {
   day: DayUnits
   label: string
   accent: string
+  editable: boolean
   onCommit: (raw: string) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -226,7 +243,7 @@ function DayRow({
         />
       </div>
 
-      {editing ? (
+      {editing && editable ? (
         <span className="by-day-count by-day-count-editing">
           {day.done}/
           <input
@@ -254,23 +271,27 @@ function DayRow({
           >
             {day.done}/{day.total}
           </span>
-          <button
-            type="button"
-            className="by-day-edit"
-            aria-label={`Edit ${label} planned total`}
-            onClick={open}
-          >
-            {/* pencil */}
-            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          {editable ? (
+            <button
+              type="button"
+              className="by-day-edit"
+              aria-label={`Edit ${label} planned total`}
+              onClick={open}
+            >
+              {/* pencil */}
+              <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : (
+            <span className="by-day-edit-spacer" aria-hidden="true" />
+          )}
         </>
       )}
     </div>

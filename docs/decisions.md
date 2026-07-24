@@ -153,11 +153,24 @@ the user types `45m` or `1h30m` and it is stored as minutes. Cheap, and it makes
 a day's load legible at a glance.
 
 **Amendment (input UX):** the *entry* is now preset chips — 15m / 30m / 1h / 2h,
-plus a custom minutes field — rather than free-text parsing. On a phone tapping a
-preset beats typing `1h30m`, and the custom field keeps the long tail reachable.
-The storage is unchanged (minutes in `duration_min`) and the read-side chip is
+plus a custom picker — rather than free-text parsing. On a phone tapping a preset
+beats typing `1h30m`, and the custom picker keeps the long tail reachable. The
+storage is unchanged (minutes in `duration_min`) and the read-side chip is
 unchanged; only how the number is captured differs. The free-text parser was
 never built, so nothing regressed.
+
+**Amendment 2 (custom is hours + minutes, 2026-07-24).** The custom field asked
+for a raw minute count, which made the user do the arithmetic — four and a half
+hours is not a number anyone holds as `270`. It is now two `<select>`s, hours
+beside minutes, in the units the duration is actually thought in.
+
+They stay *native* selects on purpose: iOS renders a `<select>` as a scroll
+wheel, so the phone-first picker the UI wants costs no code and no library, and
+it stays accessible and keyboard-usable on desktop. Hours stop at 12 — beyond
+that it is a day, not a task — and minutes step by 5. An existing off-step value
+keeps its own minute option in the list, so opening the sheet on an old 47m task
+cannot silently round it to 45. `0h 00m` stores `null`, which is the same state
+as never having set a duration.
 
 Tags are not free. A tag system needs a vocabulary, a colour or shape to render
 it, and filtering to be worth having — and colour is already fully spent
@@ -443,6 +456,26 @@ task added Thursday that you only ever intended for Thursday, a plan you abandon
 on purpose — but never flattered. An override lives in `day_plan_override`, keyed
 by plan date; deleting the row restores the derived figure. A corrected total is
 marked in the UI (dotted underline) so it never passes for derived.
+
+**And only while the week is open.** *(Added 2026-07-24, project owner.)* The
+pencil belongs to the week you are living in. Once a week has closed, its
+figures are read-only — no pencil, and the override write is refused in the data
+layer, not merely hidden. Correcting a week is part of running it: "that day's
+plan was really four" is something you know on Thursday, not something you
+should be able to decide in hindsight about a week you have already been
+measured against. A history you can edit is not a history. This is normally
+invisible, since the weekly review only ever renders the current week; it shows
+up in the one case that can render a stale one, a session left open across
+Sunday midnight, and it is checked at the write rather than at the view for
+exactly that reason.
+
+**The Overall review is read-only, entirely.** It reads the same rows, so it
+moves as the current week moves, but nothing on it can be changed from the UI.
+There is nothing there to correct that isn't already a consequence of the weeks
+underneath it — an all-time figure that could be edited directly would be a
+second, disagreeing source of truth for numbers the weekly review already owns.
+Corrections happen in one place, on an open week, and everything downstream
+follows.
 
 **Why a column and not a snapshot.** The alternative was writing each day's tally
 into a stats table at carry-over time. That stores a number the rows already

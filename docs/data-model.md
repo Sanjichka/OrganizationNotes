@@ -307,9 +307,11 @@ create table day_plan_override (
 );
 ```
 
-**Only the denominator is overridable.** The review's done count stays derived
-from `completed_at`, so a day's figure can be corrected but never flattered —
-see [`decisions.md D13`](decisions.md#d13--the-review-counts-by-plan-not-by-bucket).
+**Only the denominator is overridable, and only while its week is open.** The
+review's done count stays derived from `completed_at`, so a day's figure can be
+corrected but never flattered; and a `plan_date` outside the current week is
+refused by the client's data layer, so a closed week is a record rather than a
+draft — see [`decisions.md D13`](decisions.md#d13--the-review-counts-by-plan-not-by-bucket).
 
 An absent row means "use the derived total", so clearing a correction is a delete
 rather than a sentinel value. The percentage is clamped to 100 at render time: a

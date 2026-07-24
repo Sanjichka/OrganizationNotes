@@ -11,6 +11,11 @@ import { type Page } from './Tabs'
  * whole history, so this screen needs no new data — only a decision about what
  * an all-time figure should actually say. Until that is settled, an empty page
  * is more honest than a number nobody has defined.
+ *
+ * Whatever it grows into is read-only. It reads the same rows as the weekly
+ * review, so it moves as the current week moves, but it offers no pencil and no
+ * figure of its own to correct: an all-time number is a consequence of the
+ * weeks, and a week is corrected while it is open or not at all (D13).
  */
 export function OverallReview({
   user,

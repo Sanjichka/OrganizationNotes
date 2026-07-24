@@ -10,6 +10,8 @@ interface Props {
   tasks: Task[] // already canonically sorted
   subtasksByTask: Record<string, Subtask[]> // sorted by position
   isToday: boolean
+  /** Day of the month this bucket falls on, or null for the dateless backlog. */
+  dayNum: number | null
   collapsed: boolean
   onToggleCollapse: (bucket: Bucket) => void
   onToggleTask: (task: Task) => void
@@ -29,6 +31,7 @@ export function DaySection({
   tasks,
   subtasksByTask,
   isToday,
+  dayNum,
   collapsed,
   onToggleCollapse,
   onToggleTask,
@@ -70,8 +73,11 @@ export function DaySection({
         <span className="chevron" style={{ rotate: collapsed ? '0deg' : '90deg' }}>
           ›
         </span>
-        <span className="section-label" style={{ color: sec.label }}>
-          {BUCKET_LABEL[bucket]}
+        {/* The date leads the name. The backlog has no date and gets no gutter —
+            it isn't a day, so it doesn't line up with them. */}
+        <span className="section-name" style={{ color: sec.label }}>
+          {dayNum != null && <span className="section-date">{dayNum}</span>}
+          <span className="section-label">{BUCKET_LABEL[bucket]}</span>
         </span>
         {isToday && (
           <span className="today-pill" style={{ background: sec.accent }}>

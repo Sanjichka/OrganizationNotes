@@ -159,6 +159,10 @@ Any day's planned total can be **corrected by hand** (the pencil on its row).
 Only the total — the done count stays derived from `completed_at`, so the review
 can be corrected but never flattered.
 
+And only **while the week is open**. A closed week's figures cannot be changed
+from the UI at all: correcting a week is part of running it, not something to
+reopen afterwards.
+
 The mockup's review view shows completion percentage, done/planned/backlog
 counts, and a per-day completion bar. Treat that as the v1 starting point, not a
 ceiling.
@@ -173,6 +177,10 @@ history, so it needs no new data; what it needs is a decision about what an
 all-time figure should say, since a lifetime completion percentage converges and
 then stops moving. Candidates are listed under *Still genuinely open* in
 [`decisions.md`](decisions.md#still-genuinely-open).
+
+Whatever it becomes, it is **read-only**. It moves as the current week moves,
+because it reads the same rows — but nothing on it is editable. Corrections
+happen in one place, on an open week.
 
 ---
 
